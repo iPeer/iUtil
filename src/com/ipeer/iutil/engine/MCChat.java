@@ -40,7 +40,7 @@ public class MCChat implements Runnable {
 
 	public void start() {
 		IS_RUNNING = true;
-		(new Thread(this)).start();
+		(new Thread(this, "Minecraft Chat Announcer")).start();
 	}
 
 	public void stop() {
@@ -49,7 +49,7 @@ public class MCChat implements Runnable {
 
 	@Override
 	public void run() {
-		while (IS_RUNNING) {
+		while (IS_RUNNING && engine.isConnected) {
 			try {
 				InputStream in;
 				String firstLine = "";
@@ -103,7 +103,7 @@ public class MCChat implements Runnable {
 										engine.send("PRIVMSG "+c.getName()+" :"+colour+"14["+colour+"13Mindcrack Chat"+colour+"14]: "+colour+messages.get(x));
 								}
 							}
-							System.out.println(messages.get(x));
+							System.err.println(messages.get(x));
 						}
 					}
 				}
@@ -127,7 +127,7 @@ public class MCChat implements Runnable {
 						}
 						if (firstLine.equals(""))
 							firstLine = l;
-						messages.add(l/*.replaceAll("iPeer", "iPéer")*/.replaceAll("clbyt", "clbÿt"));
+						messages.add(l/*.replaceAll("iPeer", "iPéer")*/.replaceAll("clbyt", "clbÿt").replaceAll("CLBYT", "CLBŸT"));
 					}
 					cache.put(stream, firstLine);
 					saveMessageCache();
@@ -140,7 +140,7 @@ public class MCChat implements Runnable {
 									engine.send("PRIVMSG "+c.getName()+" :"+colour+"14["+colour+"13AWeSome"+(stream.contains("creative") ? " Creative " : " ")+"Chat"+colour+"14]: "+colour+messages.get(x));
 							}
 						}
-						System.out.println(messages.get(x));
+						System.err.println(messages.get(x));
 					}
 				}
 				this.updateAt = System.currentTimeMillis();
@@ -155,7 +155,7 @@ public class MCChat implements Runnable {
 				if (!Engine.channels.isEmpty()) {
 					for (Channel c : Engine.channels.values())
 						try {
-							engine.send("PRIVMSG "+c.getName()+" :[ERROR] "+e.toString()+" "+(stream.contains("guude") ? "Mindcrack" : "AWeSome")+" @ "+e.getStackTrace()[0]);
+							engine.send("PRIVMSG "+c.getName()+" :[ERROR] ("+(stream.contains("guude") ? "Mindcrack" : "AWeSome")+") "+e.toString()+" @ "+e.getStackTrace()[0]);
 						} catch (IOException e1) {
 							e1.printStackTrace();
 						} 

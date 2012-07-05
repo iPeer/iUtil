@@ -41,7 +41,7 @@ public class VideoChecker implements Runnable {
 
 	public void start() {
 		isRunning = true;
-		(new Thread(this)).start();
+		(new Thread(this, "YouTube Upload Detector")).start();
 	}
 
 	public void stop() {
@@ -116,7 +116,7 @@ public class VideoChecker implements Runnable {
 
 	@Override
 	public void run() {
-		while (isRunning) {
+		while (isRunning && engine.isConnected) {
 			updateUserNames();
 			if (Engine.channels.size() > 0)
 				try {
@@ -164,36 +164,40 @@ public class VideoChecker implements Runnable {
 						String nodeName = n2.item(q).getNodeName();
 						if (nodeName.equals("duration"))
 							duration = n2.item(q).getNodeValue();
-						else if (nodeName.equals("url")) {
-							String data = n2.item(q).getNodeValue();
-							String postoutput = data.split("/")[4];
-							videoID = postoutput.substring(0, postoutput.indexOf("?"));
-						}
 					}
-				int time = Integer.parseInt(duration);
-				int minutes = time / 60;
-				int seconds = time % 60;
-				int hours = 0;
-				while (minutes >= 60) {
-					hours++;
-					minutes -= 60;
+					NodeList n1 = e.getElementsByTagName("media:player");
+					NamedNodeMap nn1 = n1.item(0).getAttributes();
+					for (int x1 = 0; x1 < nn1.getLength(); x1++) {
+						String nodeName = nn1.item(x1).getNodeName();
+						if 	(nodeName.equals("url"))
+							videoID = nn1.item(x1).getNodeValue().split("\\?v=")[1].split("&feature")[0];
+					}
+					int time = Integer.parseInt(duration);
+					int minutes = time / 60;
+					int seconds = time % 60;
+					int hours = 0;
+					while (minutes >= 60) {
+						hours++;
+						minutes -= 60;
+					}
+					String newDuration = (hours > 0 ? (hours < 10 ? "0"+hours : hours)+":" : "")+(minutes < 10 ? "0"+minutes : minutes)+":"+(seconds < 10 ? "0"+seconds : seconds);
+					char dash = 6;
+					String o = Engine.colour+"13"+user+Engine.colour+"14 uploaded a video: "+Engine.colour+"13"+title+Engine.colour+"14 ["+Engine.colour+"13"+newDuration+Engine.colour+"14] "+dash+" "+Engine.colour+"13http://youtu.be/"+videoID;
+					if (!videoIDCache.containsKey(user))
+						videoIDCache.put(user, "Pending");
+					System.err.println(user+": "+videoIDCache.get(user)+" "+videoID+" "+!videoIDCache.get(user).equals(videoID));
+					if (!videoIDCache.get(user).equals(videoID)) {
+						if ((!user.equals("TheGameStation")) || (user.equals("TheGameStation") && title.startsWith("The Game Station Podcast")))
+							outList.add(o);
+						videoIDCache.put(user, videoID);
+						//System.out.println(o);
+					}				
 				}
-				String newDuration = (hours > 0 ? (hours < 10 ? "0"+hours : hours)+":" : "")+(minutes < 10 ? "0"+minutes : minutes)+":"+(seconds < 10 ? "0"+seconds : seconds);
-				char dash = 6;
-				String o = Engine.colour+"13"+user+Engine.colour+"14 uploaded a video: "+Engine.colour+"13"+title+Engine.colour+"14 ["+Engine.colour+"13"+newDuration+Engine.colour+"14] "+dash+" "+Engine.colour+"13http://youtu.be/"+videoID;
-				if (!videoIDCache.containsKey(user))
-					videoIDCache.put(user, "Pending");
-				System.err.println(user+": "+videoIDCache.get(user)+" "+videoID+" "+!videoIDCache.get(user).equals(videoID));
-				if (!videoIDCache.get(user).equals(videoID)) {
-					if ((!user.equals("TheGameStation")) || (user.equals("TheGameStation") && title.startsWith("The Game Station Podcast")))
-						outList.add(o);
-					videoIDCache.put(user, videoID);
-					//System.out.println(o);
-				}				}
 				catch (NullPointerException np) { }
+				catch (StringIndexOutOfBoundsException siobe) { siobe.printStackTrace(); }
 			}
 			if (Engine.channels.size() > 0 && outList.size() > 0)
-				engine.msgList("#questhelp", outList);
+			engine.msgList("#questhelp", outList);
 			//				for (Channel channel : Engine.channels.values())
 			//					if (!channel.getName().equals("#peer.dev"))
 		} catch (Exception e) {

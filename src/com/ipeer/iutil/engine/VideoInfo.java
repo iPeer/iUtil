@@ -31,12 +31,20 @@ public class VideoInfo {
 		NodeList videoInfo = e.getElementsByTagName("media:content");
 		String duration = videoInfo.item(0).getAttributes().item(0).getNodeValue();
 		NodeList views = e.getElementsByTagName("yt:statistics");
-		String viewCount = NumberFormat.getInstance().format(Integer.parseInt(views.item(0).getAttributes().item(1).getNodeValue()));
-		NodeList ratings = e.getElementsByTagName("gd:rating");
-		double avg = Double.parseDouble(ratings.item(0).getAttributes().item(0).getNodeValue());
-		int raters = Integer.parseInt(ratings.item(0).getAttributes().item(3).getNodeValue());
-		int likes = (int)((raters / 4)*(avg-1));
-		int dislikes = raters - likes;
+		int likes, dislikes, raters;
+		String viewCount = "0";
+		try {
+			viewCount = NumberFormat.getInstance().format(Integer.parseInt(views.item(0).getAttributes().item(1).getNodeValue()));
+			NodeList ratings = e.getElementsByTagName("gd:rating");
+			double avg = Double.parseDouble(ratings.item(0).getAttributes().item(0).getNodeValue());
+			raters = Integer.parseInt(ratings.item(0).getAttributes().item(3).getNodeValue());
+			likes = (int)((raters / 4)*(avg-1));
+			dislikes = raters - likes;
+		}
+		catch (NullPointerException n) {
+			likes = dislikes = 0;
+			viewCount = "0";
+		}
 		//System.out.println(likes+", "+dislikes);
 		NumberFormat n = NumberFormat.getInstance();
 		NodeList descriptionInfo = e.getElementsByTagName("media:description");
@@ -78,7 +86,7 @@ public class VideoInfo {
 
 	public static void main(String[] args) {
 		try {
-			getVideoInfo(Engine.engine, 0, "#Peer.dev", "J88J4B9rstY");
+			getVideoInfo(Engine.engine, 0, "#Peer.dev", "rdCGFeXIWEA");
 		} catch (SAXException e) {
 			e.printStackTrace();
 		} catch (IOException e) {

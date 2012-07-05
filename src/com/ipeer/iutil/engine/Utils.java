@@ -1,7 +1,5 @@
 package com.ipeer.iutil.engine;
 
-import com.ipeer.iutil.engine.Channel;
-import com.ipeer.iutil.engine.Engine;
 
 public class Utils {
 
@@ -19,13 +17,23 @@ public class Utils {
 	}
 
 	public boolean isAdmin(Channel c, String n) {
-		return c.getUserList().get(n).isOp() || addressesEqual(c, n);
+		try {
+			return c.getUserList().get(n).isOp() || addressesEqual(c, n);
+		}
+		catch (NullPointerException np) {
+			return false;
+		}
 	}
 
 	public boolean addressesEqual(Channel c, String n, String n2) {
-		String a1 = c.getUserList().get(n).getAddress();
-		String a2 = c.getUserList().get(n2).getAddress();
-		return a1.equals(a2);
+		try {
+			String a1 = c.getUserList().get(n).getAddress();
+			String a2 = c.getUserList().get(n2).getAddress();
+			return a1.equals(a2);
+		}
+		catch (NullPointerException n1) {
+			return false;
+		}
 	}
 
 }

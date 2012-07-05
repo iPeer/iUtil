@@ -17,13 +17,20 @@ package com.ipeer.iutil.engine;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.security.InvalidKeyException;
+import java.security.Key;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
@@ -36,12 +43,19 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.KeyGenerator;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.spec.SecretKeySpec;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 
+import com.ipeer.iutil.gui.GuiEngine;
 import com.ipeer.minecraft.servers.MCServer;
 
 public class Engine implements Runnable {
@@ -53,6 +67,12 @@ public class Engine implements Runnable {
 	public boolean isRunning = false;
 	public String ACTUAL_SERVER = "";
 	public final String commandChars = "#@.!";
+	public boolean ignoreLock = false;
+	public long botStart = 0L;
+	public long connectionStart = 0L;
+	public boolean isConnected = false;
+	public boolean runIdentd = false;
+	public boolean runGUI = false;
 
 	public static Map<String, Channel> channels = new HashMap<String, Channel>();
 	public static Map<String, String> networks = new HashMap<String, String>();
@@ -61,15 +81,16 @@ public class Engine implements Runnable {
 	public static File YouTubeUsernameConfig = null;
 	public static VideoChecker YouTube;
 	public static MCChat mindcrack, AWeSome, AWeSomeCreative;
+	public static GuiEngine gui;
 
-	public static final char colour = 03;
-	public static final char bold = 02;
-	public static final char underline = (char)1f;
-	public static final char italics = (char)1d;
-	public static final char reverse = 16;
-	public static final char endall = (char)0f;
+	public static final char colour = 0x03;
+	public static final char bold = 0x02;
+	public static final char underline = 0x1F;
+	public static final char italics = 0x1D;
+	public static final char reverse = 0x16;
+	public static final char endall = 0xF0;
 
-	protected Socket connection;
+	public Socket connection;
 	protected Utils utils;
 	protected IdentdServer identd;
 	protected String password = "";
@@ -83,24 +104,82 @@ public class Engine implements Runnable {
 	public static Engine engine;
 
 
-	public Engine(String nick, String server, int port, boolean SSL, String password) throws IOException {
+	public Engine(String nick, String server, int port, boolean SSL, String password, boolean ignoreLock, boolean runIdentd) throws IOException {
 		this.MY_NICK = nick;
 		this.server = server;
 		this.port = port;
 		this.SSL = SSL;
-		this.identd = new IdentdServer(this);
 		this.password = password;
-		File lockFile = new File("F:\\Dropbox\\Java\\iUtil\\config");
+		this.ignoreLock = ignoreLock;
+		this.runGUI = (!System.getProperty("os.name").equals("Linux"));
+		if (!runGUI)
+			System.err.println("Running in NoGUI mode");
+		if (runIdentd)
+			this.identd = new IdentdServer(this);
+		this.runIdentd = runIdentd;
+		if (gui == null)
+			gui = new GuiEngine(this);
+		File lockFile = new File("config");
 		if (!lockFile.exists())
 			lockFile.mkdirs();
 		YouTubeUsernameConfig = new File(lockFile, "YouTubeUsernameConfig.cfg");
-		lockFile = new File(lockFile, "\\lock.lck");
-		File logFile = new File("F:\\Dropbox\\Java\\iUtil\\logs\\"+this.server.replaceAll("\\.", ""));
+		lockFile = new File(lockFile, "lock.lck");
+		if (lockFile.exists() && !ignoreLock) {
+			System.err.println("Lock file exists, aborting start up.");
+			System.exit(0);
+		}
+		File logFile = new File("logs/"+this.server.replaceAll("\\.", ""));
 		if (!logFile.exists())
 			logFile.mkdirs();
-		logFile = new File(logFile, "\\sent.log");		
+		File passwordFile = new File("config/"+this.server.replaceAll("\\.", ""), "password");
+		if (passwordFile.exists() && password.equals("")) {
+			System.err.println("Reading password...");
+			File a = new File("config/"+this.server.replaceAll("\\.", ""));
+			File b = new File(a, "key");
+			File c = new File(a, "password");
+			DataInputStream f = new DataInputStream(new FileInputStream(b));
+			int x = f.readInt();
+			System.err.println(x);
+			byte[] key = new byte[x];
+			f.readFully(key);
+			Key k = new SecretKeySpec(key, "AES");
+			f.close();
+			f = new DataInputStream(new FileInputStream(c));
+			x = f.readInt();
+			System.err.println(x);
+			byte[] pass = new byte[x];
+			f.readFully(pass);
+			f.close();
+			try {
+				Cipher aes = Cipher.getInstance("AES/ECB/PKCS5Padding");
+				aes.init(Cipher.DECRYPT_MODE, k);
+				this.password = new String(aes.doFinal(pass));
+				System.err.println("Password successfully read from file.");
+			} catch (InvalidKeyException e) {
+				System.err.println("SEVERE: The key found is invalid. Continuing without a password.");
+				this.password = "";
+				e.printStackTrace();
+			} catch (NoSuchAlgorithmException e) {
+				System.err.println("SEVERE: NoSuchAlgorithmException - Exiting");
+				e.printStackTrace();
+				System.exit(0);
+			} catch (NoSuchPaddingException e) {
+				System.err.println("SEVERE: NoSuchPaddingException - Exiting");
+				e.printStackTrace();
+				System.exit(0);
+			} catch (IllegalBlockSizeException e) {
+				System.err.println("SEVERE: IllegalBlockSizeException - Exiting");
+				e.printStackTrace();
+				System.exit(0);
+			} catch (BadPaddingException e) {
+				System.err.println("SEVERE: BadPaddingException - Exiting");
+				e.printStackTrace();
+				System.exit(0);
+			} 
+		}
+		logFile = new File(logFile, "/sent.log");		
 		logFile.createNewFile();
-		File MCChatCache1 = new File("F:\\Dropbox\\Java\\iUtil\\caches\\"+this.server.replaceAll("\\.", ""));
+		File MCChatCache1 = new File("caches/"+this.server.replaceAll("\\.", ""));
 		if (!MCChatCache1.exists())
 			MCChatCache1.mkdirs();
 		YouTubeVIDCache = new File(MCChatCache1, "YouTube.iuc");
@@ -122,7 +201,9 @@ public class Engine implements Runnable {
 	}
 
 	public void start() {
-		identd.start();
+		botStart = System.currentTimeMillis();
+		if (this.runIdentd)
+			identd.start();
 		this.isRunning = true;
 		(new Thread(this)).start();
 	}
@@ -150,6 +231,8 @@ public class Engine implements Runnable {
 				in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
 				out = new BufferedWriter(new OutputStreamWriter(connection.getOutputStream()));
 			}
+			isConnected = true;
+			connectionStart = System.currentTimeMillis();
 
 			send("NICK "+MY_NICK+"\r\n");
 			send("USER "+MY_NICK+" ipeer.ipeerftw.co.cc "+MY_NICK+": iPeer's Java Utility Bot\r\n");
@@ -178,7 +261,7 @@ public class Engine implements Runnable {
 						writeToLog("-> Identifying with server...");
 						send("PRIVMSG NickServ :identify "+this.password);
 					}
-					send("MODE "+MY_NICK+" +Bp");
+					send("MODE "+MY_NICK+" +Bp-x");
 				}
 
 				else if (line.indexOf("433") >= 0) {
@@ -234,12 +317,20 @@ public class Engine implements Runnable {
 		else if (l.startsWith("ERROR :")) {
 			System.err.println(l.substring(7));
 			writeToLog("-> DISCONNECTED: "+l.substring(7));
-			System.exit(0);
+			if (runGUI)
+				gui.gui.addTextHistory(l.substring(7));
+			isConnected = false;
+			if (!gui.isVisible || !runGUI)
+				System.exit(0);
 		}
 
 		else if (l.split(" ")[1].equals("MODE")) {
 			String[] raw = l.split(" ");
 			String channel = raw[2];
+			String modes = l.split(channel+" ")[1];
+			String nick = l.split("!")[0].substring(1);
+			if (runGUI)
+				gui.gui.addTextHistory("["+channel+"] "+nick+" set modes: "+modes);
 			System.out.println(l);
 			for (int x = 4; x < raw.length; x++) {
 				if (!raw[x-1].equals(raw[x])) {
@@ -259,7 +350,10 @@ public class Engine implements Runnable {
 				message = message+":"+messageData[x];
 			}
 			message = message.substring(1);
-			System.out.println((type.equals("NOTICE") ? "<- " : "")+"["+target+"] "+ nick+": "+message);
+			String messageOut = (type.equals("NOTICE") ? "<- " : "")+(!target.equals(MY_NICK) ? "["+target+"] " : "")+nick+": "+message;
+			System.out.println(messageOut);
+			if (runGUI)
+				gui.gui.addTextHistory(messageOut);
 
 			if (message.startsWith("")) {			
 				String CTCPType = message.replaceAll("", "");
@@ -275,7 +369,7 @@ public class Engine implements Runnable {
 			else if (message.equals("+voice"))
 				send("MODE +v "+nick);
 
-			else if (message.matches("https?://(www.)?youtube.com/watch\\?.*") && l.indexOf("video_response_view_all") < 0 && l.indexOf("/playlist") < 0 && !nick.equals("iUtil")) {
+			else if (message.matches(".*https?://(www.)?youtube.com/watch\\?.*") && l.indexOf("video_response_view_all") < 0 && l.indexOf("/playlist") < 0 && !nick.equals("iUtil")) {
 				try {
 					message = message.replaceAll("https://", "http://");
 					String videoID = null;
@@ -297,7 +391,7 @@ public class Engine implements Runnable {
 				}
 				catch (Exception e) { }
 			}
-			else if (message.matches("https?://(www.)?youtu.be/.*") && !nick.equals("iUtil")) {
+			else if (message.matches(".*https?://(www.)?youtu.be/.*") && !nick.equals("iUtil")) {
 				try {
 					message = message.replaceAll("https://", "http://");
 					String a = message.split("/")[3].split("&")[0].split(" ")[0];
@@ -355,15 +449,28 @@ public class Engine implements Runnable {
 			if (target.startsWith(":"))
 				target = target.substring(1);
 			System.out.println((!type.equals("QUIT") ? "["+target+"] " : "")+type+": "+nick);
-			if (type.equals("JOIN"))
+			if (type.equals("JOIN")) {
 				send("WHO +cn "+target+" "+nick);
-			else {
+				if (runGUI)
+					gui.gui.addTextHistory("["+target+"] "+nick+" joined.");
+			}
+			else if (type.equals("QUIT")) {
+				if (runGUI)
+					gui.gui.addTextHistory(nick+" disconnected.");
+				if (utils.addressesEqual(channels.get("#peer.dev"), MY_NICK, nick) && !gui.isVisible && runGUI)
+					gui.toggleVisible();
 				for (Channel c : channels.values()) { 
 					//System.err.println(c.toString());
 					Map<String, User> a = c.getUserList();
 					if (a.containsKey(nick))
 						a.remove(nick);
 				}
+			}
+			else if (type.equals("PART")) {
+				Channel c = channels.get(target.toLowerCase());
+				c.getUserList().remove(nick);
+				if (runGUI)
+					gui.gui.addTextHistory("["+target+"] "+nick+" parted.");
 			}
 		}
 
@@ -379,11 +486,11 @@ public class Engine implements Runnable {
 	}
 
 	private String EngineVersion() {
-		return "Stable 1";
+		return "Stable 3";
 	}
 
 	private String iUtilVersion() {
-		return "1.0";
+		return "1.0.3_"+System.getProperty("os.name");
 	}
 
 	public void parseCommand(String l) throws IOException { 
@@ -524,7 +631,51 @@ public class Engine implements Runnable {
 			send(sendPrefix+utils.addressesEqual(channels.get(target.toLowerCase()), users[0], users[1]));
 		}
 
-		if (command.matches("(m(ine)?c(raft)?)?e?xp(ri[ea]nce)?")) {
+		else if (command.matches("is(down|up)")) {
+			String webserver = commandParams.replaceAll("(https?://)", "");
+			try {
+				webserver = webserver.split("/")[0];
+			}
+			catch (Exception e) { }
+			try {
+				Socket a = new Socket();
+				a.setSoTimeout(5000);
+				a.connect(new InetSocketAddress(webserver, (commandParams.substring(0, 5).equals("https") ? 443 : 80)), 5000);
+				send(sendPrefix+webserver+" is all good from here!");
+			}
+			catch (Exception e) {
+				send(sendPrefix+webserver+" seems down from here!");
+			}
+		}
+
+		else if (command.equals("restart") && userIsAdmin) {
+			send(sendPrefix+"This command is deprecated, please use .quit instead.");
+//			try {
+//				String jar = Engine.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+//				jar = jar.substring(1);
+//				ArrayList<String> p = new ArrayList<String>();
+//				p.add("java");
+//				p.add("-jar");
+//				p.add(jar);
+//				p.add("-port="+this.port);
+//				p.add("-ssl="+this.SSL);
+//				p.add("-s="+this.server);
+//				p.add("-n="+MY_NICK);
+//				p.add("-p="+this.password);
+//				p.add("-force");
+//				ProcessBuilder a = new ProcessBuilder(p);
+//				send("QUIT :Restart command recieved from "+nick);
+//				Process b = a.start();
+//				System.exit(0);
+//			}
+//			catch (Exception e) {
+//				send(sendPrefix+"Unable to restart: "+e.toString());
+//				e.printStackTrace();
+//			}
+
+		}
+
+		else if (command.matches("(m(ine)?c(raft)?)?e?xp(ri[ea]nce)?")) {
 			boolean snapshot = false;
 			NumberFormat n = NumberFormat.getInstance();
 			String errorString = "You must supply at least one level! "+commandPrefix+command+" LEVEL1 [LEVEL2]";
@@ -624,6 +775,16 @@ public class Engine implements Runnable {
 			}
 		}
 
+		else if (command.equals("showgui") && userIsAdmin) {
+			if (runGUI)
+				gui.toggleVisible();
+			else
+				send(sendPrefix+"I am running in NoGUI mode, there is no gui to show!");
+		}
+	
+		else if (command.equals("path") && userIsAdmin) {
+				send(sendPrefix+YouTubeUsernameConfig.getAbsolutePath());
+		}
 
 		else if (command.matches("(bot)?info(rmation)?")) {
 			long totalMemory = Runtime.getRuntime().totalMemory();
@@ -644,8 +805,14 @@ public class Engine implements Runnable {
 			String awesomeupdateo = " | AWeSomeChat: "+(minutes < 10 ? "0"+minutes : minutes)+":"+(seconds < 10 ? "0"+seconds : seconds);
 			String out =  "Memory Usage: "+memory+" | "+channels.size()+" channels | "+YouTube.getUsernames().size()+" watched users | "+ytupdateo+mcupdateo+awesomeupdateo;
 			String out2 = "Connection: "+connection.toString()+", "+connection.getReceiveBufferSize()+", "+connection.getSendBufferSize()+", "+this.ACTUAL_SERVER;
+			String out3 = "Java: "+System.getProperty("sun.arch.data.model")+"-bit "+System.getProperty("java.version");
 			send(sendPrefix+out);
 			send(sendPrefix+out2);
+			send(sendPrefix+out3);
+			if (commandParams.equals("-v") && runGUI) {
+				String out4 = "GUI: "+gui.toString()+", "+gui.gui.toString()+", "+gui.hashCode()+"/"+gui.gui.hashCode();
+				send(sendPrefix+out4);
+			}
 		}
 
 		else if (command.matches("(last|latest)vid(eo)?")) {
@@ -664,7 +831,7 @@ public class Engine implements Runnable {
 				String formula = commandParams;
 				List<String> regexMatches = new ArrayList<String>();
 				String eq = formula;
-				formula = formula.replaceAll("k", "*1000").replaceAll("K", "*1000").replaceAll("M", "*1000000").replaceAll("m", "*1000000").replaceAll("B", "*1000000000").replaceAll("b", "*1000000000");
+				//formula = formula.replaceAll("k", "*1000").replaceAll("K", "*1000").replaceAll("M", "*1000000").replaceAll("m", "*1000000").replaceAll("B", "*1000000000").replaceAll("b", "*1000000000");
 				if (!formula.matches("[0-9\\*+-/^\\(\\)EKMBkmb]+")) {
 					line = c1("*")+c2("*")+c1("* [")+c2("CALC")+c1("]: ")+c2("Invalid equasion!");
 				}
@@ -706,11 +873,45 @@ public class Engine implements Runnable {
 
 
 	public static void main(String[] args) {
+		if (args.length > 0 && args[0].equals("-passgen")) {
+			String s = args[1];
+			String pass = args[2];
+			File a = new File("config\\"+s.replaceAll("\\.", ""));
+			if (!a.exists())
+				a.mkdirs();
+			File b = new File(a, "key");
+			File e = new File(a, "password");
+			KeyGenerator d;
+			try {
+				d = KeyGenerator.getInstance("AES");
+				d.init(128);
+				Key key = d.generateKey();
+				DataOutputStream f = new DataOutputStream(new FileOutputStream(b));
+				f.writeInt(key.getEncoded().length);
+				f.write(key.getEncoded());
+				f.close();
+				Cipher aes = Cipher.getInstance("AES/ECB/PKCS5Padding");
+				aes.init(Cipher.ENCRYPT_MODE, key);
+				byte[] out = aes.doFinal(pass.getBytes());
+				f = new DataOutputStream(new FileOutputStream(e));
+				int x = out.length;
+				System.err.println(x);
+				f.writeInt(x);
+				f.write(out);
+				f.close();
+				System.err.println("Generated password @ "+e.getPath());
+			} catch (Exception e1) {
+				e1.printStackTrace();
+			}
+			System.exit(0);
+		}
 		Engine engine;
 		String password = "";
 		String server = "irc.swiftirc.net";
 		int port = 6667;
 		boolean SSL = false;
+		boolean ignoreLock = false;
+		boolean runIdentd = false;
 		String nick = "iUtil";
 		for (String a : args) {
 			if (a.startsWith("-p="))
@@ -723,9 +924,13 @@ public class Engine implements Runnable {
 				port = Integer.parseInt(a.split("-port=")[1]);
 			else if (a.startsWith("-n="))
 				nick = a.split("-n=")[1];
+			else if (a.equals("-force"))
+				ignoreLock = true;
+			else if (a.equals("-identd"))
+				runIdentd = true;
 		}
 		try {
-			engine = new Engine(nick, server, port, SSL, password);
+			engine = new Engine(nick, server, port, SSL, password, ignoreLock, runIdentd);
 			engine.start();
 		} 
 		catch (IOException e) {
