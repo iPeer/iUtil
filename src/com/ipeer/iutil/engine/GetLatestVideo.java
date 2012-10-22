@@ -1,16 +1,17 @@
 package com.ipeer.iutil.engine;
 
 import java.io.IOException;
+import java.util.Map;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
+
+import com.ipeer.iutil.youtube.Upload;
 
 public class GetLatestVideo {
 
@@ -36,6 +37,18 @@ public class GetLatestVideo {
 					postoutput = nn1.item(x1).getNodeValue().split("\\?v=")[1].split("&feature")[0];
 			}
 			VideoInfo.getVideoInfo(engine, outType, channel, postoutput);
+//			if (Engine.YouTube.channels.containsKey(user)) {
+//				char dash = 8212;
+//				Map<String, Upload> b = Engine.YouTube.channels.get(user).uploads;
+//				if (b.size() < 2)
+//					return;
+//				b.remove(postoutput);
+//				engine.send((pub ? "PRIVMSG " : "NOTICE ")+channel+" :"+c1("Previous videos from ")+c2(user)+c1(":"));
+//				for (String c : b.keySet()) {
+//					Upload d = b.get(c);
+//					engine.send((pub ? "PRIVMSG " : "NOTICE ")+channel+" :    "+c2(d.title)+c1(" [")+c2(Engine.YouTube.formatDuration(d.length))+c1("] "+dash+" ")+c2("http://youtu.be/"+d.VID));
+//				}
+//			}
 		}
 		catch (NullPointerException np) {
 			
@@ -47,4 +60,12 @@ public class GetLatestVideo {
 		} 
 	}
 
+	private static String c1(String s) {
+		return Engine.colour+"14"+s;
+	}
+
+	private static String c2(String s) {
+		return Engine.colour+"13"+s;
+	}
+	
 }

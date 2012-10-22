@@ -20,7 +20,7 @@ public class MCChat implements Runnable {
 	public long updateAt = 0;
 	private String AWeSomeCacheLine = "";
 	private boolean firstRun = true;
-	private boolean silent = true;
+	public boolean silent = true;
 
 	public MCChat(String stream, Engine engine) {
 		this.silent = true;
@@ -49,7 +49,7 @@ public class MCChat implements Runnable {
 
 	@Override
 	public void run() {
-		while (IS_RUNNING && engine.isConnected) {
+		while (IS_RUNNING/* && engine.isConnected*/) {
 			try {
 				InputStream in;
 				String firstLine = "";
@@ -87,7 +87,7 @@ public class MCChat implements Runnable {
 						silent = false;
 						if (!Engine.channels.isEmpty() && messages.size() > 0) {
 							for (Channel c : Engine.channels.values()) {
-								if (!c.getName().equals("#peer.dev"))
+								if (c.getName().equals("#questhelp"))
 									engine.send("PRIVMSG "+c.getName()+" :"+colour+"14["+colour+"13Mindcrack Chat"+colour+"14]:"+colour+" "+messages.size()+" messages skipped due to startup.");
 							}
 						}
@@ -99,11 +99,11 @@ public class MCChat implements Runnable {
 						for (; x >= 0; x--) {
 							if (!Engine.channels.isEmpty()) {
 								for (Channel c : Engine.channels.values()) {
-									if (!c.getName().equals("#peer.dev"))
+									if (c.getName().equals("#questhelp"))
 										engine.send("PRIVMSG "+c.getName()+" :"+colour+"14["+colour+"13Mindcrack Chat"+colour+"14]: "+colour+messages.get(x));
 								}
 							}
-							System.err.println(messages.get(x));
+							//System.err.println(messages.get(x));
 						}
 					}
 				}
@@ -112,21 +112,28 @@ public class MCChat implements Runnable {
 					in = u.openStream();
 					Scanner s = new Scanner(in, "UTF-8");
 					while (s.hasNextLine()) {
-						String l = s.nextLine().replaceFirst("&lt;", "€").replaceFirst("&gt;", "&");
+						String rawLine = s.nextLine();
+						String l = rawLine.replaceFirst("&lt;", "€").replaceFirst("&gt;", "&");
+						rawLine = rawLine.replaceAll("<br />", "");
+						//System.err.println(rawLine+", "+lastLine+ " ("+rawLine.equals(lastLine)+") - "+AWeSomeCacheLine+", "+l);
 						if (l.equals("<br />")) {
+							System.err.println("EOF");
 							firstLine = AWeSomeCacheLine;
 							break;
 						}
 						l = l.split("€")[1].replaceFirst("&", ":").replaceAll("&lt;", "<").replaceAll("&gt;", ">");
 						if (AWeSomeCacheLine.equals(""))
-							AWeSomeCacheLine = l;
-						if (l.equals(lastLine)) {
+							AWeSomeCacheLine = rawLine;
+						//System.err.println(rawLine.equals(lastLine)+" - "+rawLine+", "+lastLine);
+						if (rawLine.equals(lastLine)) {
+							//System.err.println("REACHED CACHED LINE!");
+							//System.err.println(firstLine+", "+lastLine);
 							if (firstLine.equals(""))
 								firstLine = lastLine;
 							break;
 						}
 						if (firstLine.equals(""))
-							firstLine = l;
+							firstLine = AWeSomeCacheLine;
 						messages.add(l/*.replaceAll("iPeer", "iPéer")*/.replaceAll("clbyt", "clbÿt").replaceAll("CLBYT", "CLBŸT"));
 					}
 					cache.put(stream, firstLine);
@@ -134,13 +141,15 @@ public class MCChat implements Runnable {
 					char colour = Engine.colour;
 					int x = messages.size() - 1;
 					for (; x >= 0; x--) {
-						if (!Engine.channels.isEmpty()) {
-							for (Channel c : Engine.channels.values()) {
-								if (!c.getName().equals("#peer.dev"))
-									engine.send("PRIVMSG "+c.getName()+" :"+colour+"14["+colour+"13AWeSome"+(stream.contains("creative") ? " Creative " : " ")+"Chat"+colour+"14]: "+colour+messages.get(x));
+						if (engine != null) {
+							if (!Engine.channels.isEmpty()) {
+								for (Channel c : Engine.channels.values()) {
+									if (c.getName().equals("#questhelp"))
+										engine.send("PRIVMSG "+c.getName()+" :"+colour+"14["+colour+"13AWeSome"+(stream.contains("creative") ? " Creative " : " ")+"Chat"+colour+"14]: "+colour+messages.get(x));
+								}
 							}
 						}
-						System.err.println(messages.get(x));
+						//System.err.println(messages.get(x));
 					}
 				}
 				this.updateAt = System.currentTimeMillis();
@@ -171,7 +180,7 @@ public class MCChat implements Runnable {
 	} 
 
 	private void saveMessageCache() throws IOException {
-		System.err.println("[MCChat] Saving cache!");
+		//System.err.println("[MCChat] Saving cache!");
 		cache.store(new FileOutputStream(Engine.MCChatCache), "MCChat Cache");
 	}
 

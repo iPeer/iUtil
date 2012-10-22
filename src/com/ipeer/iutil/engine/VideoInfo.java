@@ -38,7 +38,7 @@ public class VideoInfo {
 			NodeList ratings = e.getElementsByTagName("gd:rating");
 			double avg = Double.parseDouble(ratings.item(0).getAttributes().item(0).getNodeValue());
 			raters = Integer.parseInt(ratings.item(0).getAttributes().item(3).getNodeValue());
-			likes = (int)((raters / 4)*(avg-1));
+			likes = (int)((raters / 4.0)*(avg-1.0));
 			dislikes = raters - likes;
 		}
 		catch (NullPointerException n) {
@@ -67,18 +67,20 @@ public class VideoInfo {
 			minutes -= 60;
 		}
 		String newDuration = (hours > 0 ? (hours < 10 ? "0"+hours : hours)+":" : "")+(minutes < 10 ? "0"+minutes : minutes)+":"+(seconds < 10 ? "0"+seconds : seconds);
-		char dash = 6;
+		char dash = 8212;
 		String out = Engine.colour+"14["+Engine.colour+"13"+user+Engine.colour+"14] "+Engine.colour+"13"+title1+Engine.colour+"14 ["+Engine.colour+"13"+newDuration+Engine.colour+"14] ("+Engine.colour+"13"+viewCount+Engine.colour+"14 views, "+Engine.colour+"13"+n.format(likes)+Engine.colour+"14 likes, "+Engine.colour+"13"+n.format(dislikes)+Engine.colour+"14 dislikes) "+dash+" "+Engine.colour+"13http://youtu.be/"+ID;
 		String out2 = Engine.colour+"14Description: "+Engine.colour+"13"+description;
 		String[] outArray = {out, out2};
 		if (Engine.channels.size() > 0) 
 			if (description.equals(""))
 				engine.send("PRIVMSG "+channel+" :"+out);
-			else
+			else {
 				if (outType == 1)
 					engine.msgArray(channel, outArray);
 				else
 					engine.noticeArray(channel, outArray);
+				//Engine.YouTube.sendOtherVides(user, outType);
+			}
 
 		else
 			System.err.println(out);
@@ -86,7 +88,7 @@ public class VideoInfo {
 
 	public static void main(String[] args) {
 		try {
-			getVideoInfo(Engine.engine, 0, "#Peer.dev", "rdCGFeXIWEA");
+			getVideoInfo(Engine.engine, 0, "#Peer.dev", "tSsChQneY3I");
 		} catch (SAXException e) {
 			e.printStackTrace();
 		} catch (IOException e) {

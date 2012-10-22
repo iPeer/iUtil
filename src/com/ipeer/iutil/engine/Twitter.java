@@ -13,13 +13,20 @@ import org.w3c.dom.NodeList;
 
 public class Twitter {
 
-	public static void getTweetInfo(Engine engine, int i, String channel, String statusID) throws IOException {
+	private int replyLimit = 2;
+	private int currentReply = 0;
+	List<String> outList;
+
+	public Twitter() {
+		outList = new ArrayList<String>();
+	}
+
+	public void getTweetInfo(Engine engine, int i, String channel, String statusID) throws IOException {
 		DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
 		String tweetText = "";
 		String inReplyToID = "";
 		String fromUser = "";
 		String inReplyToUser = "";
-		List<String> outList = new ArrayList<String>();
 		DocumentBuilder a;
 		try {
 
@@ -28,7 +35,7 @@ public class Twitter {
 			Document doc = a.newDocument();
 			doc = a.parse("https://api.twitter.com/1/statuses/show.xml?id="+statusID);
 			NodeList n = doc.getElementsByTagName("text").item(0).getChildNodes();
-			tweetText = n.item(0).getNodeValue().replaceAll("&amp;", "&");
+			tweetText = n.item(0).getNodeValue().replaceAll("&amp;", "&").replaceAll("\n", " ");
 			n = doc.getElementsByTagName("screen_name").item(0).getChildNodes();
 			fromUser = n.item(0).getNodeValue();
 			n = doc.getElementsByTagName("in_reply_to_status_id").item(0).getChildNodes();
@@ -40,14 +47,29 @@ public class Twitter {
 			}
 
 			String out = "";
-			outList.add(out);
-			if (!inReplyToID.equals("")) {
-				char dash = 6;
-				inReplyToUser = doc.getElementsByTagName("in_reply_to_screen_name").item(0).getChildNodes().item(0).getNodeValue();
-				out = "@"+fromUser+": "+tweetText+" "+dash+" In reply to: https://twitter.com/"+inReplyToUser+"/status/"+inReplyToID;
+			if (!inReplyToID.equals("") || currentReply > 0) {
+				currentReply++;
+				String b = "@"+fromUser+": "+tweetText;
+				outList.add(b);
+				if (currentReply == replyLimit) {
+					for (int x = outList.size() - 1; x > -1; x--) {
+						if (channel != null)
+							engine.send("PRIVMSG "+channel+" :"+(x == (outList.size() - 1) ? Engine.italics : "")+outList.get(x));
+						else
+							System.err.println((x == (outList.size() - 1) ? Engine.italics : "")+outList.get(x));
+					}
+				}
+				else
+					this.getTweetInfo(engine, 1, channel, inReplyToID);
+
 			}
 			else {
-				out = "@"+fromUser+": "+tweetText;
+				if (channel != null) {
+					String b = "@"+fromUser+": "+tweetText;
+					engine.send("PRIVMSG "+channel+" :"+b);
+				}
+				else
+					System.err.println("@"+fromUser+": "+tweetText);
 			}
 			if (channel != null) { 
 				engine.send("PRIVMSG "+channel+" :"+out);
@@ -65,7 +87,8 @@ public class Twitter {
 
 	public static void main(String[] args) {
 		try {
-			getTweetInfo(null, 1, null, "197420774984925184");
+			Twitter t = new Twitter();
+			t.getTweetInfo(null, 1, null, "252060042088550400");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

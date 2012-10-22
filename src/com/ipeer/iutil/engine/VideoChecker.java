@@ -19,6 +19,8 @@ import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import com.ipeer.iutil.cache.Cache;
+
 public class VideoChecker implements Runnable {
 
 	private static List<String> userNames = new ArrayList<String>();
@@ -27,12 +29,14 @@ public class VideoChecker implements Runnable {
 	public static Thread updateThread;
 	protected Engine engine;
 	public long updateAt = 0;
+	public Cache cache;
 
 	public VideoChecker(Engine engine) throws FileNotFoundException, IOException {
 		this.engine = engine;
+		this.cache = new Cache(engine);
 		if (videoIDCache == null) 
 			videoIDCache = new Properties();
-		File IDCacheFile = Engine.YouTubeVIDCache;
+		File IDCacheFile = (Engine.YouTubeVIDCache != null ? Engine.YouTubeVIDCache : new File("F:\\Dropbox\\Java\\iUtil\\caches\\ircswiftircnet\\YouTube.iuc"));
 		if (IDCacheFile.exists())
 			videoIDCache.load(new FileInputStream(IDCacheFile));
 		System.out.println("CACHED IDs: "+videoIDCache.toString());
@@ -74,7 +78,7 @@ public class VideoChecker implements Runnable {
 	}
 
 	public final void loadUsernames() throws FileNotFoundException, IOException {
-		File usersFile = Engine.YouTubeUsernameConfig;
+		File usersFile = (Engine.YouTubeUsernameConfig != null ? Engine.YouTubeUsernameConfig : new File("F:\\Dropbox\\Java\\iUtil\\config\\YouTubeUsernameConfig.cfg"));
 		Properties a = new Properties();
 		if (usersFile.exists()) {
 			a.load(new FileInputStream(usersFile));
@@ -102,7 +106,7 @@ public class VideoChecker implements Runnable {
 	}
 
 	public void saveUsernames() throws FileNotFoundException, IOException {
-		File usersFile = Engine.YouTubeUsernameConfig;
+		File usersFile = (Engine.YouTubeUsernameConfig != null ? Engine.YouTubeUsernameConfig : new File("F:\\Dropbox\\Java\\iUtil\\config\\YouTubeUsernameConfig.cfg"));
 		Properties a = new Properties();
 		String saveString = "";
 		for (String user : userNames)
@@ -181,15 +185,16 @@ public class VideoChecker implements Runnable {
 						minutes -= 60;
 					}
 					String newDuration = (hours > 0 ? (hours < 10 ? "0"+hours : hours)+":" : "")+(minutes < 10 ? "0"+minutes : minutes)+":"+(seconds < 10 ? "0"+seconds : seconds);
-					char dash = 6;
+					char dash = 8212;
 					String o = Engine.colour+"13"+user+Engine.colour+"14 uploaded a video: "+Engine.colour+"13"+title+Engine.colour+"14 ["+Engine.colour+"13"+newDuration+Engine.colour+"14] "+dash+" "+Engine.colour+"13http://youtu.be/"+videoID;
 					if (!videoIDCache.containsKey(user))
 						videoIDCache.put(user, "Pending");
-					System.err.println(user+": "+videoIDCache.get(user)+" "+videoID+" "+!videoIDCache.get(user).equals(videoID));
+					//System.err.println(user+": "+videoIDCache.get(user)+" "+videoID+" "+!videoIDCache.get(user).equals(videoID));
 					if (!videoIDCache.get(user).equals(videoID)) {
 						if ((!user.equals("TheGameStation")) || (user.equals("TheGameStation") && title.startsWith("The Game Station Podcast")))
 							outList.add(o);
 						videoIDCache.put(user, videoID);
+						cache.addVideo(user, title, videoID);
 						//System.out.println(o);
 					}				
 				}
@@ -197,7 +202,7 @@ public class VideoChecker implements Runnable {
 				catch (StringIndexOutOfBoundsException siobe) { siobe.printStackTrace(); }
 			}
 			if (Engine.channels.size() > 0 && outList.size() > 0)
-			engine.msgList("#questhelp", outList);
+				engine.msgList("#questhelp", outList);
 			//				for (Channel channel : Engine.channels.values())
 			//					if (!channel.getName().equals("#peer.dev"))
 		} catch (Exception e) {
@@ -228,7 +233,7 @@ public class VideoChecker implements Runnable {
 
 	public void saveIDCache() throws IOException {
 		try {
-			File IDCacheFile = Engine.YouTubeVIDCache;
+			File IDCacheFile = (Engine.YouTubeVIDCache != null ? Engine.YouTubeVIDCache : new File("F:\\Dropbox\\Java\\iUtil\\caches\\ircswiftircnet\\YouTube.iuc"));
 			videoIDCache.store(new FileOutputStream(IDCacheFile), "Video ID Cache File");
 		} catch (FileNotFoundException e) {
 			engine.send("PRIVMSG "+Engine.channels.get(0).getName()+" :Unable to save ID Cache file: File not found.");
@@ -243,7 +248,10 @@ public class VideoChecker implements Runnable {
 		VideoChecker v;
 		try {
 			v = new VideoChecker(Engine.engine);
-			(new Thread(v)).start();
+			v.cache.addVideo("BdoubleO100", "Building with BdoubleO - Episode 70 - A shop for precious", "uS0mhrmgWZk");
+			v.cache.addVideo("BdoubleO100", "OOGE - Vinyl Fantasy 2 - Episode 19", "pSKpgR97nvA");
+			v.cache.addVideo("GenerikB", "Redstone Academy Ep 4 - \"Logic Gates & Practical Uses For Them (AND, XOR, etc)\"", "dg72sN7Qb4Y");
+			v.updateUserNames();
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		} catch (IOException e) {

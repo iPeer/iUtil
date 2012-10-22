@@ -52,8 +52,8 @@ public class GuiMain extends Gui {
 		g.drawString("Channels: "+Engine.channels.size(), 15, 90);
 		String uptime = "", uptime2 = "";
 		try {
-			uptime = (!engine.isConnected ? "---" : Utils.formatTime(engine.botStart));
-			uptime2 = (!engine.isConnected ? "---" : Utils.formatTime(engine.connectionStart));
+			uptime = (!engine.isConnected ? "---" : GuiUtils.formatTime(engine.botStart));
+			uptime2 = (!engine.isConnected ? "---" : GuiUtils.formatTime(engine.connectionStart));
 		}
 		catch (NullPointerException e) { 
 			uptime = uptime2 = "-"; 
