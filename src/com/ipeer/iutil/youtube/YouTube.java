@@ -74,7 +74,7 @@ public class YouTube {
 		String user = "";
 		//Iterator it = channels.keySet().iterator();
 		for (Channel c : channels.values()) {
-			user = c.getName();
+			user = c.getChannelName();
 			if (saveString.equals(""))
 				saveString = user;
 			else

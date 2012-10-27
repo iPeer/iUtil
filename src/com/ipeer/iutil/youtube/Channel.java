@@ -225,4 +225,8 @@ public class Channel implements Runnable {
 		return this.user;
 	}
 
+	public String getChannelName() {
+		return this.channelName;
+	}
+
 }

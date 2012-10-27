@@ -2,9 +2,7 @@ package com.ipeer.iutil.engine;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.URL;
+import java.util.Arrays;
 
 public class MCStatus {
 
@@ -13,20 +11,20 @@ public class MCStatus {
 		login = auth = session = account = minecraft = skins = true;	
 		int logini, authi, sessioni, accounti, minecrafti, skinsi;
 		
-		logini = Utils.getResponseCode("https://login.minecraft.net");
-		authi = Utils.getResponseCode("https://auth.mojang.com");
-		sessioni = Utils.getResponseCode("https://session.minecraft.net");
-		accounti = Utils.getResponseCode("https://account.mojang.com");
-		minecrafti = Utils.getResponseCode("http://minecraft.net");
-		skinsi = Utils.getResponseCode("http://skins.minecraft.net");
+		logini = Utils.getMinecraftLoginResponseCode("https://login.minecraft.net/");
+		authi = Utils.getResponseCode("https://auth.mojang.com/game/");
+		sessioni = Utils.getResponseCode("https://session.minecraft.net/");
+		accounti = Utils.getResponseCode("https://account.mojang.com/");
+		minecrafti = Utils.getResponseCode("http://minecraft.net/");
+		skinsi = Utils.getResponseCode("http://skins.minecraft.net/");
 		
 		
-		login = logini == HttpURLConnection.HTTP_OK;
-		auth = authi == HttpURLConnection.HTTP_OK;
-		session = sessioni == HttpURLConnection.HTTP_OK;
-		account = accounti == HttpURLConnection.HTTP_OK;
-		minecraft = minecrafti == HttpURLConnection.HTTP_OK;
-		skins = skinsi == HttpURLConnection.HTTP_OK;
+		login = Arrays.asList(200, 404).contains(logini);
+		auth = Arrays.asList(200, 404).contains(authi);
+		session = Arrays.asList(200, 404).contains(sessioni);
+		account = Arrays.asList(200, 404).contains(accounti);
+		minecraft = Arrays.asList(200, 404).contains(minecrafti);
+		skins = Arrays.asList(200, 404).contains(skinsi);
 		
 		String outString = c1("Auth", auth, authi)+c1(", ")+c1("Account", account, accounti)+c1(", ")+c1("Login", login, logini)+c1(", ")+c1("Session", session, sessioni)+c1(", ")+c1("Website", minecraft, minecrafti)+c1(", ")+c1("Skins", skins, skinsi);
 		try {
@@ -43,7 +41,7 @@ public class MCStatus {
 
 	
 	private String c1(String s, boolean t, int c) {
-		return Engine.colour+(t ? "03" : "04")+s+(c == HttpURLConnection.HTTP_OK ? "" : " ("+Utils.getErrorName(c)+")");
+		return Engine.colour+(t ? "03" : "04")+s+(c == HttpURLConnection.HTTP_OK || c == HttpURLConnection.HTTP_NOT_FOUND ? "" : " ("+Utils.getErrorName(c)+")");
 	}
 
 
