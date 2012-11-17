@@ -33,18 +33,22 @@ public class AWeSomeChat implements Runnable {
 			try {
 				cache.load(new FileInputStream(Engine.AWeSomeChatCache));
 			} catch (FileNotFoundException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 	}
 
 	public void start() {
+		if (this.IS_RUNNING)
+			return;
 		this.IS_RUNNING = true;
 		String s = ((file.getAbsolutePath()).toLowerCase().contains("creative")) ? "Creative" : "Survival";
 		(new Thread(this, "AWeSome Chat ("+s+")")).start();
+	}
+	
+	public void stop() {
+		this.IS_RUNNING = false;
 	}
 
 	public static void main(String[] args) throws IOException {
@@ -94,44 +98,8 @@ public class AWeSomeChat implements Runnable {
 	private void parseLine(String line, String c) throws IOException {
 		String prefix = Engine.colour+"14["+Engine.colour+"13AWeSome "+c+Engine.colour+"14]:"+Engine.colour;
 		//System.err.println(line);
-		if (line.contains("lost connection:")) {
-			String u = line.split(" ")[3];
-			if (online.contains(u)) {
-				online.remove(u);
-				writeToLog(line.split(" ")[0]+" "+line.split(" ")[1]+" "+u+" disconnected.", c);
-				if (engine != null) {
-					engine.send("PRIVMSG #QuestHelp :"+prefix+" "+u+" disconnected.");
-				}
-				else
-					System.err.println(u+" disconnected.");
-			}
-		}
-
-		else if (line.contains("Stopping server")) {
-			if (!online.isEmpty()) {
-				for (String a : online) {
-					online.remove(a);
-					writeToLog(line.split(" ")[0]+" "+line.split(" ")[1]+" "+a+" disconnected. (Server stopping!)", c);
-					if (engine != null)
-						engine.send("PRIVMSG #QuestHelp :"+prefix+" "+a+" disconnected. (Server stopping!)");
-					else
-						System.err.println(a+" disconnected.");
-				}
-			}
-		}
-
-		else if (line.contains("logged in with entity id")) {
-			String u = line.split(" ")[3].replaceAll("\\[.*\\]", "");
-			if (!online.contains(u))
-				online.add(u);
-			writeToLog(line.split(" ")[0]+" "+line.split(" ")[1]+" "+u+" connected.", c);
-			if (engine != null) {
-				engine.send("PRIVMSG #QuestHelp :"+prefix+" "+u+" connected.");
-			}
-			else
-				System.err.println(u+" connected.");
-		}
-		else if (line.contains("[INFO] <")) {
+		
+		if (line.contains("[INFO] <")) {
 			String[] data = line.split(" ");
 			String u = data[3].replaceAll("(<|>)", "");
 			String message = data[4];
@@ -149,6 +117,45 @@ public class AWeSomeChat implements Runnable {
 				}
 			}
 		}
+		
+		else if (line.contains("lost connection:")) {
+			String u = line.split(" ")[3];
+			if (online.contains(u)) {
+				online.remove(u);
+				writeToLog(line.split(" ")[0]+" "+line.split(" ")[1]+" "+u+" disconnected.", c);
+				if (engine != null) {
+					engine.send("PRIVMSG #QuestHelp :"+prefix+" "+u+" disconnected.");
+				}
+				else
+					System.err.println(u+" disconnected.");
+			}
+		}
+
+		else if (line.contains("logged in with entity id")) {
+			String u = line.split(" ")[3].replaceAll("\\[.*\\]", "");
+			if (!online.contains(u))
+				online.add(u);
+			writeToLog(line.split(" ")[0]+" "+line.split(" ")[1]+" "+u+" connected.", c);
+			if (engine != null) {
+				engine.send("PRIVMSG #QuestHelp :"+prefix+" "+u+" connected.");
+			}
+			else
+				System.err.println(u+" connected.");
+		}
+		
+		else if (line.contains("Stopping server")) {
+			if (!online.isEmpty()) {
+				for (String a : online) {
+					online.remove(a);
+					writeToLog(line.split(" ")[0]+" "+line.split(" ")[1]+" "+a+" disconnected. (Server stopping!)", c);
+					if (engine != null)
+						engine.send("PRIVMSG #QuestHelp :"+prefix+" "+a+" disconnected. (Server stopping!)");
+					else
+						System.err.println(a+" disconnected.");
+				}
+			}
+		}
+		
 	}
 
 	public void writeToLog(String s, String c) throws IOException {

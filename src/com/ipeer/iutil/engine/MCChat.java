@@ -16,11 +16,12 @@ public class MCChat implements Runnable {
 	private String stream;
 	public static Properties cache;
 	protected Engine engine;
-	boolean IS_RUNNING = true;
+	boolean IS_RUNNING = false;
 	public long updateAt = 0;
 	private String AWeSomeCacheLine = "";
 	private boolean firstRun = true;
 	public boolean silent = true;
+	private int errorCount = 0;
 
 	public MCChat(String stream, Engine engine) {
 		this.silent = true;
@@ -39,6 +40,9 @@ public class MCChat implements Runnable {
 	}
 
 	public void start() {
+		System.out.println("MINDCRACK: "+this.IS_RUNNING);
+		if (this.IS_RUNNING)
+			return;
 		IS_RUNNING = true;
 		(new Thread(this, "Minecraft Chat Announcer")).start();
 	}
@@ -95,6 +99,9 @@ public class MCChat implements Runnable {
 					else {
 						if (silent)
 							silent = false;
+						if (errorCount > 0) {
+							errorCount = 0;
+						}
 						int x = messages.size() - 1;
 						for (; x >= 0; x--) {
 							if (!Engine.channels.isEmpty()) {
@@ -162,16 +169,21 @@ public class MCChat implements Runnable {
 			}
 			catch (Exception e) {
 				if (!Engine.channels.isEmpty()) {
+					errorCount++;
 					for (Channel c : Engine.channels.values())
 						try {
-							engine.send("PRIVMSG "+c.getName()+" :[ERROR] ("+(stream.contains("guude") ? "Mindcrack" : "AWeSome")+") "+e.toString()+" @ "+e.getStackTrace()[0]);
+							if (errorCount <= 3)
+								engine.send("PRIVMSG "+c.getName()+" :[ERROR] ("+(stream.contains("guude") ? "Mindcrack" : "AWeSome")+" - Strike: "+errorCount+") "+e.toString()+" @ "+e.getStackTrace()[0]);
+							if (errorCount == 3) {
+								engine.send("PRIVMSG "+c.getName()+" :[ERROR] Chat has errored 3 times or more, switching to longer update interval. Once a successful update happens, original interval will be restored.");
+							}
 						} catch (IOException e1) {
 							e1.printStackTrace();
 						} 
 				}
 				System.err.println(e.toString()+" @ "+e.getStackTrace()[0]);
 				try {
-					Thread.sleep(120000);
+					Thread.sleep(errorCount >= 3 ? 600000 : 120000);
 				} catch (InterruptedException e1) {
 					e1.printStackTrace();
 				}

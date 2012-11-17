@@ -10,6 +10,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
@@ -103,8 +105,11 @@ public class Cache {
 		o2.close();
 		o.close();
 		Uploads.clear();
-		if (Engine.UploadsCache.exists())
+		if (Engine.UploadsCache.exists()) {
+			File new1 = new File(Engine.UploadsCache.getAbsolutePath()+".bak");
+			Files.copy(Engine.UploadsCache.toPath(), new1.toPath(), StandardCopyOption.REPLACE_EXISTING);
 			Engine.UploadsCache.delete();
+		}
 		for (Channel e : Engine.channels.values())
 			if (!(e.getName().toLowerCase()).equals("#peer.dev"))
 				engine.send("PRIVMSG "+e.getName()+" :Today's video cache is now available to view at http://ipeer.auron.co.uk/videocache/"+d+m+y);

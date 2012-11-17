@@ -37,8 +37,8 @@ public class YouTube {
 	public static void main(String[] args) {
 		try {
 			YouTube a = new YouTube(null);
+			//a.addChannel("HarumeiLP");
 			a.loadChannels();
-			a.saveUsernames();
 		}
 		catch (Exception e) {
 			System.err.println("Unable to load youtube usernames:");
@@ -108,8 +108,10 @@ public class YouTube {
 		}
 		for (String e : d) {
 			Channel f = new Channel(e);
-			f.start();
-			channels.put(e.toLowerCase(), f);
+			if (!f.IS_RUNNING) {
+				f.start();
+				channels.put(e.toLowerCase(), f);
+			}
 		}
 	}
 

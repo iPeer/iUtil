@@ -28,6 +28,7 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.net.HttpURLConnection;
 import java.net.Socket;
+import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
@@ -62,6 +63,7 @@ import javax.script.ScriptEngineManager;
 
 import com.ipeer.iutil.gui.GuiEngine;
 import com.ipeer.iutil.gui.GuiUtils;
+import com.ipeer.iutil.json.EmptyJSONFileException;
 import com.ipeer.iutil.shell.Shell;
 import com.ipeer.iutil.youtube.YouTube;
 import com.ipeer.minecraft.servers.MCServer;
@@ -93,11 +95,14 @@ public class Engine implements Runnable {
 	public static File UploadsCache = new File("F:\\Dropbox\\Java\\iUtil\\caches\\UploadsCache.iuc");
 	public static File ChannelUploadsCache = new File("F:\\Dropbox\\Java\\iUtil\\caches\\ircswiftircnet\\YouTube\\history");
 	public static File AWeSomeChatCache = new File("AWeSomeChatCache.iuc");
+	public static File twitchCache = new File("F:\\Dropbox\\Java\\iUtil\\caches\\twitch\\");
+	public static File twitchConfig = new File("F:\\Dropbox\\Java\\iUtil\\config\\TwitchTV.cfg");
 	public static YouTube YouTube;
 	public static MCChat mindcrack/*, AWeSome, AWeSomeCreative*/;
 	public static AWeSomeChat ASurvival, ACreative;
 	public static GuiEngine gui;
 	public static Shell Shell;
+	public static TwitchAnnounce twitchTV;
 	//public static Olympics olympics;
 
 	public static final char colour = 0x03;
@@ -116,6 +121,8 @@ public class Engine implements Runnable {
 
 	private BufferedWriter out;
 	private BufferedReader in;
+	
+	private String[] commandLine;
 
 	private Map<String, String> networkSettings = new HashMap<String, String>();
 
@@ -142,6 +149,7 @@ public class Engine implements Runnable {
 		if (!lockFile.exists())
 			lockFile.mkdirs();
 		YouTubeUsernameConfig = new File(lockFile, "YouTubeUsernameConfig.cfg");
+		twitchConfig = new File(lockFile, "TwitchTV.cfg");
 		lockFile = new File(lockFile, "lock.lck");
 		if (lockFile.exists() && !ignoreLock && !reconnecting) {
 			System.err.println("Lock file exists, aborting start up.");
@@ -205,6 +213,9 @@ public class Engine implements Runnable {
 		AWeSomeChatCache = new File(MCChatCache1, "AWeSomeChat.iuc");
 		YouTubeVIDCache = new File(MCChatCache1, "YouTube");
 		ChannelUploadsCache = new File(YouTubeVIDCache, "history");
+		twitchCache = new File(MCChatCache1, "twitch");
+		if (!twitchCache.exists())
+			twitchCache.mkdirs();
 		if (!YouTubeVIDCache.exists())
 			YouTubeVIDCache.mkdirs();
 		if (!ChannelUploadsCache.exists())
@@ -230,7 +241,60 @@ public class Engine implements Runnable {
 		console = new Console(this);
 		console.start();
 		Shell = new Shell();
+		twitchTV = new TwitchAnnounce(this);
 		engine = this;
+	}
+
+	public void restart(String nick) {
+//		if (System.getProperty("os.name").startsWith("Windows")) {
+//						try {
+//							String jar = Engine.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+//							jar = jar.substring(1);
+//							ArrayList<String> p = new ArrayList<String>();
+//							p.add("java");
+//							p.add("-jar");
+//							p.add(jar);
+//							p.add("-port="+this.port);
+//							p.add("-ssl="+this.SSL);
+//							p.add("-s="+this.server);
+//							p.add("-n="+MY_NICK);
+//							p.add("-p="+this.password);
+//							p.add("-force");
+//							ProcessBuilder a = new ProcessBuilder(p);
+//							if (isConnected)
+//								send("QUIT :Restart command recieved from "+nick);
+//							Process b = a.start();
+//							System.exit(0);
+//						}
+//						catch (Exception e) {
+//							System.err.println("Unable to restart: "+e.toString());
+//							e.printStackTrace();
+//						}
+//		}
+//		else {
+//			doJavaRestart();
+//		}
+		try {
+			doJavaRestart();
+		} catch (Exception e) {
+			System.err.println("Unable to restart.");
+			e.printStackTrace();
+			System.exit(1);
+		}
+	}
+
+	private void doJavaRestart() throws URISyntaxException, IOException {
+		List<String> a = new ArrayList<String>();
+		a.add("java");
+		a.add("-jar");
+		a.add(Engine.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath().substring(1));
+		for (String b : commandLine)
+			a.add(b);
+		
+		String[] cmdarray = new String[a.size()];
+		a.toArray(cmdarray);
+		Runtime.getRuntime().exec(cmdarray);
+		System.exit(0);
 	}
 
 	public void start() {
@@ -238,17 +302,29 @@ public class Engine implements Runnable {
 		if (this.runIdentd)
 			identd.start();
 		this.isRunning = true;
-		(new Thread(this)).start();
+		(new Thread(this, "iUtil Main thread")).start();
 	}
 
 	public void stop() {
 		this.isRunning = false;
+//		try {
+//			ACreative.stop();
+//			ASurvival.stop();
+//			YouTube.saveAllCaches();
+//			YouTube.saveUsernames();
+//			YouTube.stopAll();
+//			mindcrack.stop();
+//		}
+//		catch (Exception e) {
+//			System.err.println("Cound not stop cleanly, terminating.");
+//			e.printStackTrace();
+//			System.exit(1);
+//		}
 	}
 
-	@Override
-	public void run() {
+	public void connect() {
 		try {
-			writeToLog("SSL: "+SSL);
+			System.err.println("Connecting to "+server+":"+port+"...");
 			if (SSL) {
 				SSLContext ssl = SSLContext.getInstance("SSL");
 				ssl.init(null, SSLUtils.trustAll, new SecureRandom());
@@ -264,6 +340,19 @@ public class Engine implements Runnable {
 				in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
 				out = new BufferedWriter(new OutputStreamWriter(connection.getOutputStream()));
 			}
+		}
+		catch (Exception e) {
+			System.err.println("Unable to connect, terminating.");
+			e.printStackTrace();
+			System.exit(1);	
+		}
+	}
+
+	@Override
+	public void run() {
+		try {
+			writeToLog("SSL: "+SSL);
+			connect();
 			isConnected = true;
 			connectionStart = System.currentTimeMillis();
 
@@ -273,7 +362,7 @@ public class Engine implements Runnable {
 			writeToLog("-> Connected. Waiting for server...");
 
 			String line = "";
-			while ((line = in.readLine()) != null) {
+			while ((line = in.readLine()) != null && isRunning) {
 				System.err.println(line);
 
 				if (line.indexOf("001") >= 0) // Server address
@@ -329,8 +418,9 @@ public class Engine implements Runnable {
 			ASurvival.start();
 			ACreative.start();
 			//olympics.start();
+			twitchTV.start();
 			line = "";
-			while ((line = in.readLine()) != null) {
+			while ((line = in.readLine()) != null && isRunning) {
 				try {
 					parseLine(line);
 				}
@@ -350,17 +440,16 @@ public class Engine implements Runnable {
 			d.setTime(new Date(System.currentTimeMillis()));
 			System.err.println(d.getTime()+":");
 			e.printStackTrace();
-			try {
-				YouTube.saveAllCaches();
-				engine = new Engine(MY_NICK, server, port, SSL, password, ignoreLock, runIdentd, true, runGUI);
-				quit("Bot is Reconnecting.");
-			} catch (IOException e1) {
-				d = Calendar.getInstance();
-				d.setTime(new Date(System.currentTimeMillis()));
-				System.err.println(d.getTime()+":");	
-				e1.printStackTrace();
-				System.exit(1);
-			} 
+			//try {
+			YouTube.saveAllCaches();
+			restart("");
+			//			} catch (IOException e1) {
+			//				d = Calendar.getInstance();
+			//				d.setTime(new Date(System.currentTimeMillis()));
+			//				System.err.println(d.getTime()+":");	
+			//				e1.printStackTrace();
+			//				System.exit(1);
+			//			} 
 		}
 
 	}
@@ -373,12 +462,13 @@ public class Engine implements Runnable {
 			send("PONG "+l.substring(5));
 		}
 		else if (l.startsWith("ERROR :")) {
+			isConnected = false;
 			System.err.println(l.substring(7));
 			writeToLog("-> DISCONNECTED: "+l.substring(7));
+			YouTube.saveUsernames();
+			YouTube.saveAllCaches();
 			if (!requestedQuit) {
-				YouTube.saveAllCaches();
-				engine = new Engine(MY_NICK, server, port, SSL, password, ignoreLock, runIdentd, true, runGUI);
-				engine.start();
+				System.exit(0);
 			}
 			else {
 				if (runGUI)
@@ -561,7 +651,7 @@ public class Engine implements Runnable {
 	}
 
 	public String iUtilVersion() {
-		return "1.1_"+System.getProperty("os.name");
+		return "1.3_"+System.getProperty("os.name");
 	}
 
 	@SuppressWarnings("deprecation")
@@ -597,6 +687,10 @@ public class Engine implements Runnable {
 			Map<String, User> users = c.getUserList();
 			String line = "AIL for "+target+" contains "+users.size()+" entries";
 			send((pub ? "PRIVMSG "+target : "NOTICE "+nick)+" :"+line);
+		}
+
+		if (command.equals("reconnect") && userIsAdmin) {
+			parseCommand("restart");
 		}
 
 		else if (command.equals("send") && userIsAdmin) {
@@ -704,6 +798,16 @@ public class Engine implements Runnable {
 			String user = commandParams;
 			YouTube.removeChannel(user);
 		}
+		
+		else if (command.startsWith("addtwitch") && userIsAdmin) {
+			String user = commandParams;
+			twitchTV.addUser(user);
+		}
+		
+		else if (command.startsWith("deltwitch") && userIsAdmin) {
+			String user = commandParams;
+			twitchTV.delUser(user);
+		}
 
 		else if (command.equals("listusernames") && userIsAdmin) {
 			send(sendPrefix+YouTube.channels.toString());
@@ -733,7 +837,12 @@ public class Engine implements Runnable {
 		//		}
 
 		else if (command.matches("m(ine)?c(raft)?s(tats?)(us)?")) {
-			new MCStatus(target, this);
+			try {
+				new MCStatus(target, this);
+			} catch (Exception e) {
+				send("PRIVMSG "+target+ ":Unable to check Minecraft service status");
+				e.printStackTrace();
+			}
 		}
 
 		else if (command.equals("addressesEqual") && userIsAdmin) {
@@ -752,30 +861,7 @@ public class Engine implements Runnable {
 		}
 
 		else if (command.equals("restart") && userIsAdmin) {
-			send(sendPrefix+"This command is deprecated, please use .quit instead.");
-			//			try {
-			//				String jar = Engine.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
-			//				jar = jar.substring(1);
-			//				ArrayList<String> p = new ArrayList<String>();
-			//				p.add("java");
-			//				p.add("-jar");
-			//				p.add(jar);
-			//				p.add("-port="+this.port);
-			//				p.add("-ssl="+this.SSL);
-			//				p.add("-s="+this.server);
-			//				p.add("-n="+MY_NICK);
-			//				p.add("-p="+this.password);
-			//				p.add("-force");
-			//				ProcessBuilder a = new ProcessBuilder(p);
-			//				send("QUIT :Restart command recieved from "+nick);
-			//				Process b = a.start();
-			//				System.exit(0);
-			//			}
-			//			catch (Exception e) {
-			//				send(sendPrefix+"Unable to restart: "+e.toString());
-			//				e.printStackTrace();
-			//			}
-
+			send(sendPrefix+"Do not use.");
 		}
 
 		else if (command.matches("(awesome)?(players|online)")) {
@@ -1054,6 +1140,7 @@ public class Engine implements Runnable {
 		}
 		try {
 			engine = new Engine(nick, server, port, SSL, password, ignoreLock, runIdentd, false, guienabled);
+			engine.commandLine = args;
 			engine.start();
 		} 
 		catch (IOException e) {

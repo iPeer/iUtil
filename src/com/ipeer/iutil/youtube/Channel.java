@@ -32,7 +32,7 @@ public class Channel implements Runnable {
 	private String channelName;
 	public Map<String, Upload> uploads = new HashMap<String, Upload>();
 	public Properties cache;
-	private boolean IS_RUNNING;
+	public boolean IS_RUNNING;
 
 	public Channel(String user) throws FileNotFoundException, IOException {
 		this.cache = new Properties();
@@ -54,7 +54,6 @@ public class Channel implements Runnable {
 
 	public void stop() {
 		this.IS_RUNNING = false;
-		run();
 	}
 
 	@Override
@@ -87,64 +86,77 @@ public class Channel implements Runnable {
 			YouTube.sync.clear();
 		}
 		try {
-		System.err.println(this.user);
-		DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
-		DocumentBuilder a = f.newDocumentBuilder();
-		Document doc = a.newDocument();
-		String duration, title, videoID;
-		duration = title = videoID = "";
-		doc = a.parse("http://gdata.youtube.com/feeds/api/users/"+this.channelName+"/uploads");
-		Element e = doc.getDocumentElement();
-		e.normalize();
-		NodeList n4 = e.getElementsByTagName("author");
-		String author = n4.item(0).getChildNodes().item(0).getChildNodes().item(0).getNodeValue();
-		if (!author.toLowerCase().equals(this.user.toLowerCase()))
-			this.user = author;
-		NodeList n3 = e.getElementsByTagName("media:group");
-		Node node = n3.item(0);
-		n3 = node.getChildNodes();
+			System.err.println(this.user);
+			DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
+			DocumentBuilder a = f.newDocumentBuilder();
+			Document doc = a.newDocument();
+			String duration, title, videoID;
+			duration = title = videoID = "";
+			doc = a.parse("http://gdata.youtube.com/feeds/api/users/"+this.channelName+"/uploads");
+			Element e = doc.getDocumentElement();
+			e.normalize();
+			NodeList n4 = e.getElementsByTagName("author");
+			String author = n4.item(0).getChildNodes().item(0).getChildNodes().item(0).getNodeValue();
+			if (!author.toLowerCase().equals(this.user.toLowerCase()))
+				this.user = author;
+			NodeList n3 = e.getElementsByTagName("media:group");
+			Node node = n3.item(0);
+			n3 = node.getChildNodes();
 
-		for (int q1 = 0; q1 < n3.getLength(); q1++) {
-			String nodeName = n3.item(q1).getNodeName();
-			if (nodeName.equals("media:title"))
-				title = n3.item(q1).getChildNodes().item(0).getNodeValue();
-		}
-		NodeList n = e.getElementsByTagName("media:content");
-		NamedNodeMap n2 = n.item(0).getAttributes();
-		for (int q = 0; q < n2.getLength(); q++) {
-			String nodeName = n2.item(q).getNodeName();
-			if (nodeName.equals("duration"))
-				duration = n2.item(q).getNodeValue();
-		}
-		NodeList n1 = e.getElementsByTagName("media:player");
-		NamedNodeMap nn1 = n1.item(0).getAttributes();
-		for (int x1 = 0; x1 < nn1.getLength(); x1++) {
-			String nodeName = nn1.item(x1).getNodeName();
-			if 	(nodeName.equals("url"))
-				videoID = nn1.item(x1).getNodeValue().split("\\?v=")[1].split("&feature")[0];
-		}
-
-		if (!cache.getProperty("lastID").equals(videoID) && !uploads.containsKey(videoID)) {
-			if (uploads.size() == 5)
-				uploads.remove(uploads.keySet().iterator().next());
-			uploads.put(videoID, new Upload(title, duration, videoID));
-			cache.put("lastID", videoID);
-			YouTube.cache.addVideo(this.user, title, videoID);
-			announce(title, duration, videoID);
-			saveCache();
-		}
+			for (int q1 = 0; q1 < n3.getLength(); q1++) {
+				String nodeName = n3.item(q1).getNodeName();
+				if (nodeName.equals("media:title"))
+					title = n3.item(q1).getChildNodes().item(0).getNodeValue();
+			}
+			NodeList n = e.getElementsByTagName("media:content");
+			NamedNodeMap n2 = n.item(0).getAttributes();
+			for (int q = 0; q < n2.getLength(); q++) {
+				String nodeName = n2.item(q).getNodeName();
+				if (nodeName.equals("duration"))
+					duration = n2.item(q).getNodeValue();
+			}
+			NodeList n1 = e.getElementsByTagName("media:player");
+			NamedNodeMap nn1 = n1.item(0).getAttributes();
+			for (int x1 = 0; x1 < nn1.getLength(); x1++) {
+				String nodeName = nn1.item(x1).getNodeName();
+				if 	(nodeName.equals("url"))
+					videoID = nn1.item(x1).getNodeValue().split("\\?v=")[1].split("&feature")[0];
+			}
+			if (uploadsContainID(videoID)) {
+				String id = cache.getProperty("lastID");
+				uploads.remove(id);
+				saveCache();
+				return;
+			}
+			else if (!cache.getProperty("lastID").equals(videoID)) {
+				if (uploads.size() == 5)
+					uploads.remove(uploads.keySet().iterator().next());
+				uploads.put(videoID, new Upload(title, duration, videoID));
+				cache.put("lastID", videoID);
+				YouTube.cache.addVideo(this.user, title, videoID);
+				announce(title, duration, videoID);
+				saveCache();
+			}
 		}
 		catch (IOException e) {
-			String e1 = "The following error occured while updating "+this.user+": "+e.toString()+": "+e.getStackTrace()[0];
+			String e1 = "[YouTube] The following error occured while updating "+this.user+": "+e.toString()+": "+e.getStackTrace()[0];
 			Engine e2 = Engine.engine;
 			if (e2 == null)
 				System.err.println(e1);
 			else
 				Engine.engine.amsg(e1); 
+			e.printStackTrace();
 		}
 
 
 
+	}
+	
+	public boolean uploadsContainID(String id) {
+		try {
+			return uploads.containsKey(id);
+		}
+		catch (Exception e) { return false; }
 	}
 
 	public void saveCache() throws FileNotFoundException, IOException {
@@ -182,11 +194,11 @@ public class Channel implements Runnable {
 			if (line.startsWith("T: "))
 				title = line.split("T: ")[1];
 			if (line.startsWith("I: ")) {
-				length = line.split("I: ")[1];
+				VID = line.split("I: ")[1];
 				c.put(VID, new Upload(title, length, VID));
 			}
 			if (line.startsWith("L: "))
-				VID = line.split("L: ")[1];
+				length = line.split("L: ")[1];
 
 		}
 		b.close();

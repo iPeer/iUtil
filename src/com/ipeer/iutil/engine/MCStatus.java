@@ -2,31 +2,27 @@ package com.ipeer.iutil.engine;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.util.Arrays;
+import java.net.MalformedURLException;
+
+import com.ipeer.iutil.json.EmptyJSONFileException;
+import com.ipeer.iutil.json.JSONReader;
 
 public class MCStatus {
 
-	public MCStatus(String channel, Engine engine) {
+	public MCStatus(String channel, Engine engine) throws MalformedURLException, EmptyJSONFileException, IOException {
 		boolean login, auth, session, account, minecraft, skins;
-		login = auth = session = account = minecraft = skins = true;	
-		int logini, authi, sessioni, accounti, minecrafti, skinsi;
+		login = auth = session = account = minecraft = skins = true;
+
+		JSONReader a = new JSONReader("https://status.mojang.com/check");
 		
-		logini = Utils.getMinecraftLoginResponseCode("https://login.minecraft.net/");
-		authi = Utils.getResponseCode("https://auth.mojang.com/game/");
-		sessioni = Utils.getResponseCode("https://session.minecraft.net/");
-		accounti = Utils.getResponseCode("https://account.mojang.com/");
-		minecrafti = Utils.getResponseCode("http://minecraft.net/");
-		skinsi = Utils.getResponseCode("http://skins.minecraft.net/");
+		login = a.get("login.minecraft.net").equals("green");
+		minecraft = a.get("minecraft.net").equals("green");
+		auth = a.get("auth.mojang.com").equals("green");
+		session = a.get("session.minecraft.net").equals("green");
+		skins = a.get("skins.minecraft.net").equals("green");
+		account = a.get("account.mojang.com").equals("green");
 		
-		
-		login = Arrays.asList(200, 404).contains(logini);
-		auth = Arrays.asList(200, 404).contains(authi);
-		session = Arrays.asList(200, 404).contains(sessioni);
-		account = Arrays.asList(200, 404).contains(accounti);
-		minecraft = Arrays.asList(200, 404).contains(minecrafti);
-		skins = Arrays.asList(200, 404).contains(skinsi);
-		
-		String outString = c1("Auth", auth, authi)+c1(", ")+c1("Account", account, accounti)+c1(", ")+c1("Login", login, logini)+c1(", ")+c1("Session", session, sessioni)+c1(", ")+c1("Website", minecraft, minecrafti)+c1(", ")+c1("Skins", skins, skinsi);
+		String outString = c1("Auth", auth)+c1(", ")+c1("Account", account)+c1(", ")+c1("Login", login)+c1(", ")+c1("Session", session)+c1(", ")+c1("Website", minecraft)+c1(", ")+c1("Skins", skins);
 		try {
 			if (engine != null)
 				engine.send("PRIVMSG "+channel+" :"+outString);
@@ -39,13 +35,7 @@ public class MCStatus {
 		
 	}
 
-	
-	private String c1(String s, boolean t, int c) {
-		return Engine.colour+(t ? "03" : "04")+s+(c == HttpURLConnection.HTTP_OK || c == HttpURLConnection.HTTP_NOT_FOUND ? "" : " ("+Utils.getErrorName(c)+")");
-	}
 
-
-	@SuppressWarnings("unused")
 	private String c1(String s, boolean t) {
 		return Engine.colour+(t ? "03" : "04")+s;
 	}
@@ -53,7 +43,7 @@ public class MCStatus {
 		return Engine.colour+"14"+s;
 	}
 	
-	public static void main(String[] args) {
+	public static void main(String[] args) throws MalformedURLException, EmptyJSONFileException, IOException {
 		new MCStatus(null, null);
 	}
 
