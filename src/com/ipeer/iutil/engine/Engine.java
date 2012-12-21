@@ -22,12 +22,13 @@ import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.io.Writer;
 import java.net.HttpURLConnection;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -63,10 +64,10 @@ import javax.script.ScriptEngineManager;
 
 import com.ipeer.iutil.gui.GuiEngine;
 import com.ipeer.iutil.gui.GuiUtils;
-import com.ipeer.iutil.json.EmptyJSONFileException;
+import com.ipeer.iutil.remote.server.iUtilServer;
 import com.ipeer.iutil.shell.Shell;
 import com.ipeer.iutil.youtube.YouTube;
-import com.ipeer.minecraft.servers.MCServer;
+import com.ipeer.minecraft.servers.MCServerUtils;
 
 public class Engine implements Runnable {
 
@@ -83,9 +84,11 @@ public class Engine implements Runnable {
 	public boolean isConnected = false;
 	public boolean runIdentd = false;
 	public boolean runGUI = false;
+	public boolean runDebugServer = true;
 	public boolean requestedQuit = false;
 	public File lock;
 	public boolean relayChat = true;
+	public boolean quietMode = true;
 
 	public static Map<String, Channel> channels = new HashMap<String, Channel>();
 	public static Map<String, String> networks = new HashMap<String, String>();
@@ -97,6 +100,7 @@ public class Engine implements Runnable {
 	public static File AWeSomeChatCache = new File("AWeSomeChatCache.iuc");
 	public static File twitchCache = new File("F:\\Dropbox\\Java\\iUtil\\caches\\twitch\\");
 	public static File twitchConfig = new File("F:\\Dropbox\\Java\\iUtil\\config\\TwitchTV.cfg");
+	public static File iUtilAccountsDir = new File("F:\\Dropbox\\Java\\iUtil\\config\\Accounts");
 	public static YouTube YouTube;
 	public static MCChat mindcrack/*, AWeSome, AWeSomeCreative*/;
 	public static AWeSomeChat ASurvival, ACreative;
@@ -118,6 +122,9 @@ public class Engine implements Runnable {
 	protected String password = "";
 	protected Twitter twitter;
 	protected Console console;
+	protected iUtilServer debugserver;
+	protected AWeSomeServerStatus serverStatus;
+	protected MinecraftStatusChecker mcStatus;
 
 	private BufferedWriter out;
 	private BufferedReader in;
@@ -126,11 +133,12 @@ public class Engine implements Runnable {
 
 	private Map<String, String> networkSettings = new HashMap<String, String>();
 
-	private static Writer logWriter;
+	private static FileWriter logWriter;
 	public static Engine engine;
 
 
-	public Engine(String nick, String server, int port, boolean SSL, String password, boolean ignoreLock, boolean runIdentd, boolean reconnecting, boolean runGUI) throws IOException {
+	public Engine(String nick, String server, int port, boolean SSL, String password, boolean ignoreLock, boolean runIdentd, boolean reconnecting, boolean runGUI, boolean runDebugServer) throws IOException {
+		Runtime.getRuntime().addShutdownHook(new ExitHandler(this));
 		this.MY_NICK = nick;
 		this.server = server;
 		this.port = port;
@@ -138,42 +146,53 @@ public class Engine implements Runnable {
 		this.password = password;
 		this.ignoreLock = ignoreLock;
 		this.runGUI = runGUI;
+		this.runDebugServer = runDebugServer;
 		if (!runGUI)
 			System.err.println("Running in NoGUI mode");
 		if (runIdentd)
 			this.identd = new IdentdServer(this);
+		if (runDebugServer) {
+			this.debugserver = new iUtilServer(this);
+			this.debugserver.start();
+		}
 		this.runIdentd = runIdentd;
 		if (gui == null)
 			gui = new GuiEngine(this);
 		File lockFile = new File("config");
 		if (!lockFile.exists())
 			lockFile.mkdirs();
+		File logFile = new File("logs/"+this.server.replaceAll("\\.", ""));
+		if (!logFile.exists())
+			logFile.mkdirs();
+		logFile = new File(logFile, "/sent.log");		
+		logFile.createNewFile();
+		logWriter = new FileWriter(logFile, true);
 		YouTubeUsernameConfig = new File(lockFile, "YouTubeUsernameConfig.cfg");
 		twitchConfig = new File(lockFile, "TwitchTV.cfg");
+		iUtilAccountsDir = new File("config/Accounts/");
+		if (!iUtilAccountsDir.exists())
+			iUtilAccountsDir.mkdirs();
 		lockFile = new File(lockFile, "lock.lck");
 		if (lockFile.exists() && !ignoreLock && !reconnecting) {
 			System.err.println("Lock file exists, aborting start up.");
 			System.exit(0);
 		}
-		File logFile = new File("logs/"+this.server.replaceAll("\\.", ""));
-		if (!logFile.exists())
-			logFile.mkdirs();
 		File passwordFile = new File("config/"+this.server.replaceAll("\\.", ""), "password");
 		if (passwordFile.exists() && password.equals("")) {
-			System.err.println("Reading password...");
+			writeToLog("Reading password for "+this.server+"...");
 			File a = new File("config/"+this.server.replaceAll("\\.", ""));
 			File b = new File(a, "key");
 			File c = new File(a, "password");
 			DataInputStream f = new DataInputStream(new FileInputStream(b));
 			int x = f.readInt();
-			System.err.println(x);
+			writeToLog("KL: "+x);
 			byte[] key = new byte[x];
 			f.readFully(key);
 			Key k = new SecretKeySpec(key, "AES");
 			f.close();
 			f = new DataInputStream(new FileInputStream(c));
 			x = f.readInt();
-			System.err.println(x);
+			writeToLog("PL: "+x);
 			byte[] pass = new byte[x];
 			f.readFully(pass);
 			f.close();
@@ -182,6 +201,7 @@ public class Engine implements Runnable {
 				aes.init(Cipher.DECRYPT_MODE, k);
 				this.password = new String(aes.doFinal(pass));
 				System.err.println("Password successfully read from file.");
+				writeToLog("Read password from file.");
 			} catch (InvalidKeyException e) {
 				System.err.println("SEVERE: The key found is invalid. Continuing without a password.");
 				this.password = "";
@@ -204,8 +224,6 @@ public class Engine implements Runnable {
 				System.exit(0);
 			} 
 		}
-		logFile = new File(logFile, "/sent.log");		
-		logFile.createNewFile();
 		File MCChatCache1 = new File("caches/"+this.server.replaceAll("\\.", ""));
 		if (!MCChatCache1.exists())
 			MCChatCache1.mkdirs();
@@ -224,7 +242,7 @@ public class Engine implements Runnable {
 		MCChatCache = MCChatCache1;
 		if (!MCChatCache.exists())
 			MCChatCache.createNewFile();
-		logWriter = new OutputStreamWriter(new FileOutputStream(logFile));
+		//logWriter = new OutputStreamWriter(new FileOutputStream(logFile));
 		lockFile.createNewFile();
 		lockFile.deleteOnExit();
 		lock = lockFile;
@@ -242,6 +260,8 @@ public class Engine implements Runnable {
 		console.start();
 		Shell = new Shell();
 		twitchTV = new TwitchAnnounce(this);
+		serverStatus = new AWeSomeServerStatus(this);
+		mcStatus = new MinecraftStatusChecker();
 		engine = this;
 	}
 
@@ -324,7 +344,7 @@ public class Engine implements Runnable {
 
 	public void connect() {
 		try {
-			System.err.println("Connecting to "+server+":"+port+"...");
+			sendToServerAndLog("Connecting to "+server+"/"+port+"...");
 			if (SSL) {
 				SSLContext ssl = SSLContext.getInstance("SSL");
 				ssl.init(null, SSLUtils.trustAll, new SecureRandom());
@@ -333,7 +353,7 @@ public class Engine implements Runnable {
 				in = new BufferedReader(new InputStreamReader(ssls.getInputStream()));
 				out = new BufferedWriter(new OutputStreamWriter(ssls.getOutputStream()));
 				connection = ssls;
-				writeToLog("-> Initializing SSL connection: "+server+":"+port+"/"+ssls.getLocalPort());
+				sendToServerAndLog("Initializing SSL connection: "+server+":"+port+"/"+ssls.getLocalPort());
 			}
 			else {
 				connection = new Socket(server, port);
@@ -348,6 +368,12 @@ public class Engine implements Runnable {
 		}
 	}
 
+	private void sendToServerAndLog(String string) throws IOException {
+		writeToLog(string);
+		if (serverEnabled())
+			debugserver.sendToAllAdminClients(string);
+	}
+
 	@Override
 	public void run() {
 		try {
@@ -359,7 +385,7 @@ public class Engine implements Runnable {
 			send("NICK "+MY_NICK+"\r\n");
 			send("USER "+MY_NICK+" ipeer.ipeerftw.co.cc "+MY_NICK+": iPeer's Java Utility Bot\r\n");
 
-			writeToLog("-> Connected. Waiting for server...");
+			writeToLog("Connected. Waiting for server...");
 
 			String line = "";
 			while ((line = in.readLine()) != null && isRunning) {
@@ -387,7 +413,7 @@ public class Engine implements Runnable {
 				}
 
 				else if (line.indexOf("433") >= 0) {
-					writeToLog("-> Nick is in use, trying "+MY_NICK+"2");
+					writeToLog("Nick is in use, trying "+MY_NICK+"2");
 					String newNick = MY_NICK+"2";
 					MY_NICK = newNick;
 					send("NICK :"+newNick);
@@ -408,6 +434,7 @@ public class Engine implements Runnable {
 				}	
 			}
 
+			//String autoJoin[] = {"#Peer.dev"};
 			String autoJoin[] = ("#QuestHelp,#Peer.Dev,#AWeSome").split(",");
 			for (String c : autoJoin)
 				join(c);
@@ -419,6 +446,8 @@ public class Engine implements Runnable {
 			ACreative.start();
 			//olympics.start();
 			twitchTV.start();
+			serverStatus.start();
+			mcStatus.start();
 			line = "";
 			while ((line = in.readLine()) != null && isRunning) {
 				try {
@@ -497,7 +526,9 @@ public class Engine implements Runnable {
 		else if (Arrays.asList("PRIVMSG", "NOTICE").contains(l.split(" ")[1])) {
 			String type = l.split(" ")[1];
 			String nick = l.split("!")[0].substring(1);
-			String address = l.split("!")[1].split(" ")[0];
+			String address = "";
+			if (l.split(" ")[0].contains("!"))
+				address = l.split("!")[1].split(" ")[0];
 			String target = l.split(" ")[2];
 			String[] messageData = l.split(":");
 			String message = "";
@@ -507,6 +538,12 @@ public class Engine implements Runnable {
 			message = message.substring(1);
 			String messageOut = (type.equals("NOTICE") ? "<- " : "")+(!target.equals(MY_NICK) ? "["+target+"] " : "")+nick+": "+message;
 			System.out.println(messageOut);
+			if (serverEnabled())
+				if (target.equalsIgnoreCase("#peer.dev")) 
+					getServer().sendToAllAdminClients(messageOut);
+				else
+					getServer().sendToAllClients(messageOut);
+				
 			if (runGUI)
 				gui.gui.addTextHistory(messageOut);
 
@@ -647,14 +684,13 @@ public class Engine implements Runnable {
 	}
 
 	public String EngineVersion() {
-		return "Stable 5";
+		return "Stable 6";
 	}
 
 	public String iUtilVersion() {
-		return "1.3_"+System.getProperty("os.name");
+		return "1.3.6_"+System.getProperty("os.name");
 	}
 
-	@SuppressWarnings("deprecation")
 	public void parseCommand(String l) throws IOException { 
 		String nick = l.split("!")[0].substring(1);
 		String address = l.split("!")[1].split(" ")[0];
@@ -748,6 +784,9 @@ public class Engine implements Runnable {
 			else if (thread.equals("youtube")) {
 				YouTube.stopAll();
 			}
+			else if (thread.equals("twitch")) {
+				twitchTV.stop();
+			}
 			//			else if (thread.equals("awesomechat")) {
 			//				AWeSome.stop();
 			//				AWeSomeCreative.stop();
@@ -772,6 +811,9 @@ public class Engine implements Runnable {
 			}
 			else if (thread.equals("youtube")) {
 				YouTube.startAll();
+			}
+			else if (thread.equals("twitch")) {
+				twitchTV.start();
 			}
 			//			else if (thread.equals("awesomechat")) {
 			//				AWeSome.start();
@@ -968,11 +1010,12 @@ public class Engine implements Runnable {
 					port = Integer.parseInt(data.split(":")[1]);
 				}
 				catch (ArrayIndexOutOfBoundsException e) { }
-				MCServer.pollServer(pub ? target : nick, pub ? 1 : 0, address, port, this);
+				//MCServer.pollServer(pub ? target : nick, pub ? 1 : 0, address, port, this);
+				MCServerUtils.pollServer(this, sendPrefix, address,  port);
 			}
 			else {
-				MCServer.pollServer(pub ? target : nick, pub ? 1 : 0, "s.auron.co.uk", 0, this);
-				MCServer.pollServer(pub ? target : nick, pub ? 1 : 0, "c.auron.co.uk", 0, this);
+				MCServerUtils.pollServer(this, sendPrefix, "s.auron.co.uk", 0);
+				MCServerUtils.pollServer(this, sendPrefix, "c.auron.co.uk", 0);
 				return;
 			}
 		}
@@ -989,31 +1032,10 @@ public class Engine implements Runnable {
 		}
 
 		else if (command.matches("(bot)?info(rmation)?")) {
-			long totalMemory = Runtime.getRuntime().totalMemory();
-			long freeMemory = Runtime.getRuntime().freeMemory();
-			long usedMemory = totalMemory - freeMemory;
-			String memory = (usedMemory / 1024L / 1024L)+"MB/"+(totalMemory / 1024L / 1024L)+"MB";
-			DateFormat d = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.MEDIUM, Locale.UK);
-			d.setTimeZone(TimeZone.getTimeZone("GMT"));
-			String ytupdateo = /*"YouTube: "+d.format(YouTube.updateAt + 600000);*/"";
-			String mcupdateo = " | MCChat: "+d.format(mindcrack.updateAt + 120000);
-			//String awesomeupdateo = " | AWeSomeChat: "+d.format(AWeSome.updateAt + 120000);
-			String awesomeupdateo = "";
-			String olyupdateo = "";/*" | Olympics: "+d.format(olympics.updateAt + olympics.updateDelay);*/
-			String out =  "Memory Usage: "+memory+" | "+channels.size()+" channels | "+YouTube.channels.size()+" watched users";
-			String out6 = "Thread Updates (GMT): "+ytupdateo+mcupdateo+awesomeupdateo+olyupdateo;
-			String out2 = "Connection: "+connection.toString()+", "+connection.getReceiveBufferSize()+", "+connection.getSendBufferSize()+", "+this.ACTUAL_SERVER;
-			String out3 = "Java: "+System.getProperty("sun.arch.data.model")+"-bit "+System.getProperty("java.version");
-			String out5 = "Uptimes: "+GuiUtils.formatTime(botStart)+" (Bot) "+GuiUtils.formatTime(connectionStart)+" (Connection)";
-			send(sendPrefix+out);
-			send(sendPrefix+out6);
-			send(sendPrefix+out2);
-			send(sendPrefix+out3);
-			if (commandParams.equals("-v") && runGUI) {
-				String out4 = "GUI: "+gui.toString()+", "+gui.gui.toString()+", "+gui.hashCode()+"/"+gui.gui.hashCode();
-				send(sendPrefix+out4);
+			String[] out = getInfoStrings();
+			for (String a : out) {
+				send(sendPrefix+a);
 			}
-			send(sendPrefix+out5);
 		}
 
 		else if (command.matches("(last|latest)vid(eo)?")) {
@@ -1119,6 +1141,7 @@ public class Engine implements Runnable {
 		boolean ignoreLock = false;
 		boolean runIdentd = false;
 		boolean guienabled = true;
+		boolean runDebugServer = true;
 		String nick = "iUtil";
 		for (String a : args) {
 			if (a.startsWith("-p="))
@@ -1137,9 +1160,11 @@ public class Engine implements Runnable {
 				runIdentd = true;
 			else if (a.equals("-nogui"))
 				guienabled = false;
+			else if (a.equals("-nodebugserver"))
+				runDebugServer = false;
 		}
 		try {
-			engine = new Engine(nick, server, port, SSL, password, ignoreLock, runIdentd, false, guienabled);
+			engine = new Engine(nick, server, port, SSL, password, ignoreLock, runIdentd, false, guienabled, runDebugServer);
 			engine.commandLine = args;
 			engine.start();
 		} 
@@ -1155,12 +1180,15 @@ public class Engine implements Runnable {
 	}
 
 	public void writeToLog(String s) throws IOException {
-		if (!s.endsWith("\n"))
-			s = s+"\n";
+//		if (!s.endsWith("\n"))
+//			s = s+"\n";
 		if (s.startsWith("-> PRIVMSG NickServ :identify"))
 			return;
-		logWriter.write(s);
+		//logWriter.seek(logWriter.length());
+		logWriter.write(s+"\r\n");
 		logWriter.flush();
+		//logWriter.write(s);
+		//logWriter.flush();
 	}
 
 	private void join (String channel) throws IOException {
@@ -1182,6 +1210,10 @@ public class Engine implements Runnable {
 
 	public void quit(String s) throws IOException {
 		YouTube.saveAllCaches();
+		if (serverEnabled()) {
+			debugserver.sendToAllClients("The server is being stopped due to the bot shutting down.");
+			debugserver.terminateAll();
+		}
 		send("QUIT :"+s);
 
 	}
@@ -1237,6 +1269,44 @@ public class Engine implements Runnable {
 	public void restartConsole() {
 		console = new Console(this);
 		console.start();
+	}
+	
+	public boolean serverEnabled() {
+		return this.runDebugServer;
+	}
+
+	public iUtilServer getServer() {
+		return this.debugserver;
+	}
+	
+	public String[] getInfoString() throws SocketException { return getInfoStrings(); }
+	
+	public String[] getInfoStrings() throws SocketException {
+		
+		long totalMemory = Runtime.getRuntime().totalMemory();
+		long freeMemory = Runtime.getRuntime().freeMemory();
+		long usedMemory = totalMemory - freeMemory;
+		String memory = (usedMemory / 1024L / 1024L)+"MB/"+(totalMemory / 1024L / 1024L)+"MB";
+		DateFormat d = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.MEDIUM, Locale.UK);
+		d.setTimeZone(TimeZone.getTimeZone("GMT"));
+		String ytupdateo = "YouTube: "+d.format(YouTube.channels.get(YouTube.channels.keySet().iterator().next()).updateAt + 600000);
+		String twitcho = " | Twitch.TV "+d.format(twitchTV.updateAt + 600000);
+		String mcupdateo = " | MCChat: "+d.format(mindcrack.updateAt + 120000);
+		//String awesomeupdateo = " | AWeSomeChat: "+d.format(AWeSome.updateAt + 120000);
+		String awesomeupdateo = "";
+		String olyupdateo = "";/*" | Olympics: "+d.format(olympics.updateAt + olympics.updateDelay);*/
+		List<String> outs = new ArrayList<String>();
+		outs.add("Memory Usage: "+memory+" | "+channels.size()+" channels | "+YouTube.channels.size()+" watched users");
+		outs.add("Thread Updates (GMT): "+ytupdateo+twitcho+mcupdateo);
+		outs.add("Connection: "+connection.toString()+", "+connection.getReceiveBufferSize()+", "+connection.getSendBufferSize()+", "+this.ACTUAL_SERVER);
+		outs.add("Java: "+System.getProperty("sun.arch.data.model")+"-bit "+System.getProperty("java.version"));
+		outs.add("Uptimes: "+GuiUtils.formatTime(botStart)+" (Bot) "+GuiUtils.formatTime(connectionStart)+" (Connection)");
+		if (runGUI)
+			outs.add("GUI: "+gui.toString()+", "+gui.gui.toString()+", "+gui.hashCode()+"/"+gui.gui.hashCode());
+		
+		String[] a = new String[outs.size()];
+		outs.toArray(a);
+		return a;
 	}
 
 }

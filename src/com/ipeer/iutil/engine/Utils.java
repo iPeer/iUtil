@@ -6,6 +6,7 @@ import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.net.UnknownHostException;
+import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -67,7 +68,7 @@ public class Utils {
 		HttpsURLConnection a;
 		try {
 			a = (HttpsURLConnection)new URL(url).openConnection();
-			String params = "user=StatusPoll";
+			String params = "user=notausername";
 			a.setRequestMethod("POST");
 			a.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
 			a.setRequestProperty("Content-Length", Integer.toString(params.getBytes().length));
@@ -129,11 +130,15 @@ public class Utils {
 		if (!url.startsWith("http://") && !url.startsWith("https://"))
 			url = "http://"+url;
 		HttpURLConnection a;
+		HashMap<String, String> b = new HashMap<String, String>();
+		b.put("ping", Long.toString(-1L));
 		try {
+			long ping1 = System.nanoTime();
 			a = (HttpURLConnection)new URL(url).openConnection();
 			a.setRequestMethod(method);
 			a.setConnectTimeout(3000);
 			a.setReadTimeout(3000);
+			b.put("ping", Long.toString((System.nanoTime() - ping1 / 1000)));
 			return a.getResponseCode();
 		}
 		catch (UnknownHostException e) {
@@ -147,7 +152,7 @@ public class Utils {
 		}
 		catch (Exception e) {
 			e.printStackTrace();
-			return 0;
+return 0;
 		}
 	}
 

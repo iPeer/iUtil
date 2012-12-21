@@ -33,6 +33,8 @@ public class Channel implements Runnable {
 	public Map<String, Upload> uploads = new HashMap<String, Upload>();
 	public Properties cache;
 	public boolean IS_RUNNING;
+	public long updateAt = 0L;
+	private Thread thread;
 
 	public Channel(String user) throws FileNotFoundException, IOException {
 		this.cache = new Properties();
@@ -49,20 +51,21 @@ public class Channel implements Runnable {
 
 	public void start() {
 		this.IS_RUNNING = true;
-		(new Thread(this, "YouTube Announcer ("+this.user+")")).start();
+		(thread = new Thread(this, "YouTube Announcer ("+this.user+")")).start();
 	}
 
 	public void stop() {
 		this.IS_RUNNING = false;
+		thread.interrupt();
 	}
 
 	@Override
 	public void run() {
-		while (IS_RUNNING) {
+		while (IS_RUNNING && !Thread.interrupted()) {
 			try {
 				update();
-
-				Thread.sleep(600000/* + (long)new Random().nextInt(120000)*/);
+				updateAt = System.currentTimeMillis();
+				Thread.sleep((YouTube.errored ? 1800000 : 600000)/* + (long)new Random().nextInt(120000)*/);
 			}
 			catch (NullPointerException e) { 
 				e.printStackTrace();
@@ -128,30 +131,51 @@ public class Channel implements Runnable {
 				saveCache();
 				return;
 			}
-			else if (!cache.getProperty("lastID").equals(videoID)) {
+			else if (!cache.getProperty("lastID", "Pending...").equals(videoID)) {
 				if (uploads.size() == 5)
 					uploads.remove(uploads.keySet().iterator().next());
-				uploads.put(videoID, new Upload(title, duration, videoID));
+				Upload up = new Upload(title, duration, videoID);
+				uploads.put(videoID, up);
 				cache.put("lastID", videoID);
+				if (Engine.engine.serverEnabled())
+					Engine.engine.getServer().sendToAllAdminClients("Cached YouTube upload for user "+this.user+" with ID "+videoID+" {"+up.toString()+"}");
 				YouTube.cache.addVideo(this.user, title, videoID);
 				announce(title, duration, videoID);
 				saveCache();
 			}
+			YouTube.updateSuccesses++;
+			if (YouTube.updateSuccesses >= YouTube.numChannels) {
+				YouTube.errors = 0;
+				YouTube.errored = false;
+			}
+
 		}
 		catch (IOException e) {
-			String e1 = "[YouTube] The following error occured while updating "+this.user+": "+e.toString()+": "+e.getStackTrace()[0];
+			YouTube.updateSuccesses = 0;
+			YouTube.errors++;
+			if (YouTube.errors > 2)
+				return;
+			String e1 = "[YouTube, Strike: "+YouTube.errors+"] The following error occured while updating "+this.user+": "+e.toString()+": "+e.getStackTrace()[0];
 			Engine e2 = Engine.engine;
 			if (e2 == null)
 				System.err.println(e1);
-			else
+			else {
+				if (e2.serverEnabled())
+					e2.getServer().sendToAllAdminClients(e1);
 				Engine.engine.amsg(e1); 
+			}
 			e.printStackTrace();
+			if (YouTube.errors >= 2) {
+
+				YouTube.errored = true;
+				e2.amsg("Due to prolonged errors, the YouTube announcer has been set to a longer interval. Once "+Engine.underline+"ALL"+Engine.underline+" thread update succesfully, the interval will be returned to normal.");
+			}
 		}
 
 
 
 	}
-	
+
 	public boolean uploadsContainID(String id) {
 		try {
 			return uploads.containsKey(id);

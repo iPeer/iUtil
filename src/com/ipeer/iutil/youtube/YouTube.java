@@ -7,7 +7,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -24,6 +23,10 @@ public class YouTube {
 	public Map<String, Channel> channels = new HashMap<String, Channel>();
 	public static Cache cache;
 	public static List<Channel> sync;
+	public static int errors = 0;
+	public static boolean errored = false;
+	public static int numChannels;
+	public static int updateSuccesses = 0;
 
 	public YouTube(Engine engine) throws FileNotFoundException, IOException { 
 		cache = new Cache(engine);
@@ -39,6 +42,7 @@ public class YouTube {
 			YouTube a = new YouTube(null);
 			//a.addChannel("HarumeiLP");
 			a.loadChannels();
+			numChannels = a.channels.size();
 		}
 		catch (Exception e) {
 			System.err.println("Unable to load youtube usernames:");
@@ -154,6 +158,10 @@ public class YouTube {
 			minutes -= 60;
 		}
 		return (hours > 0 ? (hours < 10 ? "0"+hours : hours)+":" : "")+(minutes < 10 ? "0"+minutes : minutes)+":"+(seconds < 10 ? "0"+seconds : seconds);
+	}
+	
+	public void addError() {
+		errors++;
 	}
 
 }

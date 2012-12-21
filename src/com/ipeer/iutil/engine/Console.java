@@ -36,7 +36,9 @@ public class Console implements Runnable {
 				}
 				catch (Exception e) {	}
 
-
+				if (engine.serverEnabled())
+					engine.getServer().sendToAllAdminClients("[CONSOLE INPUT] "+d);
+				
 				if (b.matches("stop|exit|quit|[q]{1,3}")) {
 					engine.quit("STOP command from console.");
 					engine.requestedQuit = true;

@@ -13,12 +13,13 @@ import javax.naming.directory.InitialDirContext;
 
 import com.ipeer.iutil.engine.Engine;
 
-public class MCServer {
+public class MCServerUtils extends Thread {
 
 	public static void main(String[] args) {
 		try {
-			pollServer(null, 0, "ipeer.ipeerftw.co.cc", 0, null);
-			//pollServer(null, 0, "s.auron.co.uk", 0, null);
+			//pollServer(null, 0, "mc.neizt.co.uk", 0, null);
+			//pollServer(null, null, "mc.neizt.co.uk", 0);
+			pollServer(null, null, "s.auron.co.uk", 0);
 /*			pollServer(null, 0, "c.auron.co.uk", 0, null);
 			pollServer(null, 0, "e.auron.co.uk", 0, null);*/
 		}
@@ -26,7 +27,17 @@ public class MCServer {
 			e.printStackTrace();
 		}
 	}
+	
+	@Override
+	public void run() {
+		
+	}
+	
+	public static void pollServer(Engine engine, String prefix, String addr, int port) {
+		(new ThreadedMCServerPoller(engine, prefix, addr, port)).start();
+	}
 
+	@Deprecated
 	public static void pollServer(String channel, int mode, String addr, int p, Engine engine) throws IOException {
 		long ping1 = System.nanoTime();
 		//System.out.println("Polling "+addr);
@@ -108,7 +119,7 @@ public class MCServer {
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
-	private static int getPort(String addr) {
+	public static int getPort(String addr) {
 		try {
 			Hashtable a = new Hashtable();
 			a.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory");
@@ -117,7 +128,7 @@ public class MCServer {
 			Attributes c = b.getAttributes("_minecraft._tcp."+addr, new String[] {"SRV"});
 			return Integer.parseInt(c.get("srv").get().toString().split(" ", 4)[2]);
 		}
-		catch (Exception e) {
+		catch (Throwable e) {
 			return 25565;
 		}
 	}

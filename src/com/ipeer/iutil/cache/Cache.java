@@ -48,7 +48,7 @@ public class Cache {
 	}
 
 	public void generateFile() throws IOException {
-		generateFile("/home/iPeer/www/html/");
+		generateFile("/home/iPeer/www/html/vcaches/");
 	}
 	
 	public void generateFile(String file) throws IOException {
@@ -68,6 +68,15 @@ public class Cache {
 			out.delete();
 		if (out2.exists())
 			out2.delete();
+		String watchAllPre = "Watch ALL the videos!";
+		String watchAllTitle = "iUtil upload cache for "+d+"/"+m+"/"+y;
+		String watchAllIds = "";
+		for (Uploader a : Uploads.values()) {
+			Set<String> s = a.URLs.keySet();
+			for (String e : s)
+				watchAllIds = watchAllIds+(watchAllIds.length() > 0 ? "," : "")+a.URLs.get(e);
+		}
+		String watchAllFinal = "<div align=\"center\"><a href=\"https://www.youtube.com/watch_videos?video_ids="+watchAllIds+"&no_autoplay=1&title="+watchAllTitle.replaceAll(" ", "%20")+"\">"+watchAllPre+"</a></div>";
 		OutputStreamWriter o = new OutputStreamWriter(new FileOutputStream(out));
 		OutputStreamWriter o2 = new OutputStreamWriter(new FileOutputStream(out2));
 		String s = "<html><head><title>Video uploads for "+d+"/"+m+"/"+y+"</title>" +
@@ -78,6 +87,8 @@ public class Cache {
 		s = "<div align=\"center\" width=\"auto\"><font size=\"5\">Video uploads for "+d+"/"+m+"/"+y+"</font></div>";
 		o.write("<div align=\"center\">Prefer this page without images? try the <a href=\"./"+d+m+y+"/lite\">lite version</a>.</div>");
 		o2.write("<div align=\"center\">Want the images back? Go back to the <a href=\"../"+d+m+y+"\">full version</a>.</div>");
+		o.write(watchAllFinal);
+		o2.write(watchAllFinal);
 		o.write(s);
 		o2.write(s);
 		for (Uploader a : Uploads.values()) {

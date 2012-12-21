@@ -23,6 +23,10 @@ public class TwitchAnnounce implements Runnable {
 	private boolean IS_RUNNING = false;
 	private Thread thread;
 	private Engine engine;
+	public long updateAt = 0L;
+	private int errors = 0;
+	private boolean errored = false;
+	private int successes = 0;
 
 	public TwitchAnnounce(Engine engine) {
 		users = new ArrayList<String>();
@@ -43,6 +47,8 @@ public class TwitchAnnounce implements Runnable {
 	}
 
 	public void start() {
+		if (IS_RUNNING)
+			return;
 		IS_RUNNING = true;
 		(thread = new Thread(this, "Twitch.TV Announcer")).start();
 	}
@@ -54,8 +60,9 @@ public class TwitchAnnounce implements Runnable {
 		while (IS_RUNNING && !thread.isInterrupted()) {
 			for (String u : users)
 				check(u);
+			updateAt = System.currentTimeMillis();
 			try {
-				Thread.sleep(600000);
+				Thread.sleep(errored ? 1800000 : 600000);
 			} catch (InterruptedException e) {
 				thread.interrupt();
 				IS_RUNNING = false;
@@ -90,6 +97,11 @@ public class TwitchAnnounce implements Runnable {
 				prop.put("lastStatus", status);
 				announce(user, status, game);
 			}
+			successes++;
+			if (successes > users.size()) {
+				errored = false;
+				errors = 0;
+			}				
 			prop.store(new FileOutputStream(userCache), "Twitch.TV Cache for "+user);
 		} catch (EmptyJSONFileException e) {
 			if (userCache.exists()) {
@@ -97,11 +109,23 @@ public class TwitchAnnounce implements Runnable {
 				userCache.delete();
 			}
 		} catch (Exception e) {
-			String e1 = "[Twitch] The following error occured while updating "+user+": "+e.toString()+": "+e.getStackTrace()[0];
+			String e1 = "[Twitch, Strike: "+errors+"] The following error occured while updating "+user+": "+e.toString();
 			if (engine == null)
 				System.err.println(e1);
 			else
-				engine.amsg(e1); 
+				if (!e1.contains("HTTP response code: 408")) {
+					errors++;
+					successes = 0;
+					e1 = "[Twitch, Strike: "+errors+"] The following error occured while updating "+user+": "+e.toString();
+					if (errors >= 3) {
+						errored = true;
+						if (errors == 3)
+							engine.amsg("[Twitch] Due to prolonged errors the update time for this thread has been increased. Once a full update successfully completes the delay will be reset to the normal interval.");
+						return;
+					}
+					engine.amsg(e1); 
+				}
+			engine.getServer().sendToAllAdminClients(e1);
 			e.printStackTrace();
 		}
 	}
@@ -116,14 +140,16 @@ public class TwitchAnnounce implements Runnable {
 		case 1:
 			String url = "http://twitch.tv/"+u;
 			char dash = 8212;
-			out = c2(u)+c1(" is LIVE with ")+c2(s)+(!g.equals("") ? c1(" playing ")+c2(g) : "")+c1(dash+" ")+c2(url);
+			out = c2(u)+c1(" is LIVE ")+(s.equals("") ? "" : "with ")+c2(s)+(!g.equals("") ? c1(" playing ")+c2(g) : "")+c1(" "+dash+" ")+c2(url);
+			if (engine.serverEnabled())
+				engine.getServer().sendToAllClients("\247d"+u+" \2478is LIVE "+(s.equals("") ? "" : "with \247d")+c2(s)+(!g.equals("") ? " \2478playing \247d"+g : "")+" \2478"+dash+" \247d"+url);
 			if (engine == null)
 				System.err.println(out);
 			else
 				engine.amsg(out);
 			break;
 		case 2:
-			out = c2(u)+c1(" is no longer LIVE");
+			out = c2(u)+c1(" is no longer live.");
 			if (engine == null)
 				System.err.println(out);
 			else
