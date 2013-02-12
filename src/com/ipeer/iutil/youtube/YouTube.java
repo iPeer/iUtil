@@ -23,10 +23,11 @@ public class YouTube {
 	public Map<String, Channel> channels = new HashMap<String, Channel>();
 	public static Cache cache;
 	public static List<Channel> sync;
-	public static int errors = 0;
-	public static boolean errored = false;
-	public static int numChannels;
-	public static int updateSuccesses = 0;
+	public volatile int errors = 0;
+	public volatile boolean errored = false;
+	public volatile int numChannels;
+	public volatile int updateSuccesses = 0;
+	public volatile long updateDelay = 600000;
 
 	public YouTube(Engine engine) throws FileNotFoundException, IOException { 
 		cache = new Cache(engine);
@@ -42,7 +43,7 @@ public class YouTube {
 			YouTube a = new YouTube(null);
 			//a.addChannel("HarumeiLP");
 			a.loadChannels();
-			numChannels = a.channels.size();
+			//numChannels = a.channels.size();
 		}
 		catch (Exception e) {
 			System.err.println("Unable to load youtube usernames:");
@@ -111,12 +112,13 @@ public class YouTube {
 			d = c.split(",");
 		}
 		for (String e : d) {
-			Channel f = new Channel(e);
+			Channel f = new Channel(e, this);
 			if (!f.IS_RUNNING) {
 				f.start();
 				channels.put(e.toLowerCase(), f);
 			}
 		}
+		this.numChannels = channels.size();
 	}
 
 	public void saveAllCaches() {

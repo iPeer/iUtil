@@ -17,7 +17,10 @@ import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -33,60 +36,120 @@ public class MinecraftStatusChecker implements Runnable {
 	private String username;
 	private Thread thread;
 	private boolean IS_RUNNING = false;
-	
+	private HashMap<String, Long> times;
+	private HashMap<String, String> statuses;
+	private boolean firstCheck = true;
+
 	public static void main(String[] args) {
 		MinecraftStatusChecker a = new MinecraftStatusChecker();
 		a.start();
 	}
-	
+
 	public void start() {
 		IS_RUNNING = true;
 		(thread = new Thread(this, "Minecraft Service Status Checker")).start();
 	}
-	
+
 	public void stop() {
 		IS_RUNNING = false;
 		thread.interrupt();
 	}
-	
+
 	public void run() {
 		String[] logind = readLogin();
 		this.username = logind[0];
 		this.password = logind[1];
+		times = new HashMap<String, Long>();
+		statuses = new HashMap<String, String>();
 		while (IS_RUNNING && !Thread.interrupted()) {
 			try {
 				HashMap<String, String> skins = getResponseCode("http://skins.minecraft.net/MinecraftSkins/iPeer.png", "GET");
 				skins.put("online", (skins.get("status").equals("HTTP 200") ? "up" : "down"));
-				HashMap<String, String> minecraft = getResponseCode("http://minecraft.net");
+				HashMap<String, String> minecraft = getResponseCode("https://minecraft.net");
 				minecraft.put("online", (minecraft.get("status").equals("HTTP 200") ? "up" : "down"));
 				HashMap<String, String> account = getResponseCode("https://account.mojang.com");
 				account.put("online", (account.get("status").equals("HTTP 200") ? "up" : "down"));
-//				HashMap<String, String> auth = getMinecraftLoginResponseCode("https://auth.mojang.com");
-//				auth.put("online", (auth.get("status").equals("HTTP 404") || auth.get("status").equals("HTTP 400") || auth.get("status").equals("HTTP 200") ? "up" : "down"));
+				//				HashMap<String, String> auth = getMinecraftLoginResponseCode("https://auth.mojang.com");
+				//				auth.put("online", (auth.get("status").equals("HTTP 404") || auth.get("status").equals("HTTP 400") || auth.get("status").equals("HTTP 200") ? "up" : "down"));
 				HashMap<String, String> session = getResponseCode("https://session.minecraft.net/game/checkserver.jsp");
 				session.put("online", (session.get("status").equals("HTTP 200") ? "up" : "down"));
 				HashMap<String, String> login = getMinecraftLoginResponseCode("https://login.minecraft.net");
 				login.put("online", (login.get("status").equals("HTTP 200") ? "up" : "down"));
-				
-				List<HashMap<String, String>> a = new ArrayList<HashMap<String, String>>();				
-				a.add(skins);
-				a.add(minecraft);
-				a.add(account);
+
+
+				HashMap<String, HashMap<String, String>> a = new HashMap<String, HashMap<String, String>>();				
+				a.put("Skins", skins);
+				a.put("Website", minecraft);
+				a.put("Accounts", account);
 				//a.add(auth);
-				a.add(session);
-				a.add(login);
-				
+				a.put("Session", session);
+				a.put("Login", login);
+
+				Iterator<Entry<String, HashMap<String, String>>> it = a.entrySet().iterator();
+				while (it.hasNext()) {
+					Map.Entry<String, HashMap<String, String>> da = it.next();
+					String k = da.getKey();
+					if ((!statuses.containsKey(k) 
+							|| !times.containsKey(k)) 
+							|| (((!statuses.get(k).equals(da.getValue().get("status")) && System.currentTimeMillis() - times.get(k) >= 120000) 
+							|| (statuses.get(k).equals(da.getValue().get("status")) && System.currentTimeMillis() - times.get(k) >= 30000)))
+							)
+						announceStatus(k, da.getValue());
+				}
+
+				if (firstCheck) {
+					firstCheck = false;	
+				}
+
 				writeDataToFile(a);
-				
+
 				Thread.sleep(60000);
-				
+
 			}
 			catch (Exception e) {
 				e.printStackTrace();
 			}
 		}
 	}
-	
+
+	private void announceStatus(String k, HashMap<String, String> value) {
+		Engine e = Engine.engine;
+		statuses.put(k,	value.get("status"));
+		boolean reAnnounce = (times.get(k) != null && System.currentTimeMillis() - times.get(k) >= 900000 && (statuses.get(k) != null && !statuses.get(k).equals("HTTP 200")));
+		times.put(k, System.currentTimeMillis());
+		if ((firstCheck && value.get("status").equals("HTTP 200")) || Utils.bothEqual(value.get("status"), statuses.get(k), "HTTP 200"))
+			return;
+		if (e == null)
+			System.err.println(k+" "+(value.get("status").equals("HTTP 200") ? "is back online!" : (reAnnounce ? "is still down. (" : "is reporting downtime! ("+value.get("status")+")")));
+		else
+			e.amsg(prefix()+c2(k)+c1(" "+(value.get("status").equals("HTTP 200") ? "is back online!" : (reAnnounce ? "is still down. (" : "is reporting downtime! (")+c2(value.get("status"))+c1(")"))));
+	}
+
+	private String c1(String s) {
+		return Engine.colour+"14"+s;
+	}
+
+	private String c2(String s) {
+		return Engine.colour+"13"+s;
+	}
+
+	private String prefix() {
+		return c1("[")+c2("Minecraft Status")+c1("] ");
+	}
+
+	private void writeDataToFile(HashMap<String, HashMap<String, String>> a) throws IOException {
+		File c = new File("MinecraftStatus.txt");
+		FileWriter d = new FileWriter(c);
+		Iterator<Entry<String, HashMap<String, String>>> it = a.entrySet().iterator();
+		while (it.hasNext()) {
+			Map.Entry<String, HashMap<String, String>> da = it.next();
+			HashMap<String, String> map = da.getValue();
+			d.write(map.get("server")+"\01"+map.get("ping")+"\01"+map.get("online")+"\01"+map.get("status")+"\n");
+		}
+		d.close();
+	}
+
+	@SuppressWarnings("unused")
 	private void writeDataToFile(List<HashMap<String, String>> a) throws IOException {
 		File c = new File("MinecraftStatus.txt");
 		FileWriter d = new FileWriter(c);
@@ -217,7 +280,7 @@ public class MinecraftStatusChecker implements Runnable {
 			return "HTTP "+code;
 		}
 	}
-	
+
 	@SuppressWarnings("unused")
 	private void writeLogin(String u, String p) throws IOException {
 		DataOutputStream out = new DataOutputStream(new FileOutputStream(new File("MCSSCreds.iaf")));
@@ -244,7 +307,7 @@ public class MinecraftStatusChecker implements Runnable {
 		} 
 		out.close();
 	}
-	
+
 	private String[] readLogin() {
 		Key key;
 		String u = "", p = "";

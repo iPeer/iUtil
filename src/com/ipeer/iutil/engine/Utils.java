@@ -185,4 +185,8 @@ return 0;
 		}
 	}
 
+	public static boolean bothEqual(String string, String string2, String string3) {
+		return string.equals(string3) && string2.equals(string3);
+	}
+
 }

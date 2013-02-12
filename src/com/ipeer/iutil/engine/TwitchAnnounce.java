@@ -27,6 +27,7 @@ public class TwitchAnnounce implements Runnable {
 	private int errors = 0;
 	private boolean errored = false;
 	private int successes = 0;
+	public long updateDelay = 600000;
 
 	public TwitchAnnounce(Engine engine) {
 		users = new ArrayList<String>();
@@ -62,7 +63,7 @@ public class TwitchAnnounce implements Runnable {
 				check(u);
 			updateAt = System.currentTimeMillis();
 			try {
-				Thread.sleep(errored ? 1800000 : 600000);
+				Thread.sleep(updateDelay);
 			} catch (InterruptedException e) {
 				thread.interrupt();
 				IS_RUNNING = false;
@@ -98,9 +99,10 @@ public class TwitchAnnounce implements Runnable {
 				announce(user, status, game);
 			}
 			successes++;
-			if (successes > users.size()) {
+			if (successes >= users.size()) {
 				errored = false;
 				errors = 0;
+				updateDelay = 600000;
 			}				
 			prop.store(new FileOutputStream(userCache), "Twitch.TV Cache for "+user);
 		} catch (EmptyJSONFileException e) {
@@ -119,6 +121,7 @@ public class TwitchAnnounce implements Runnable {
 					e1 = "[Twitch, Strike: "+errors+"] The following error occured while updating "+user+": "+e.toString();
 					if (errors >= 3) {
 						errored = true;
+						updateDelay = 1800000;
 						if (errors == 3)
 							engine.amsg("[Twitch] Due to prolonged errors the update time for this thread has been increased. Once a full update successfully completes the delay will be reset to the normal interval.");
 						return;

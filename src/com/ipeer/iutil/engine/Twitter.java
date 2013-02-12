@@ -54,7 +54,7 @@ public class Twitter {
 				if (currentReply == replyLimit) {
 					for (int x = outList.size() - 1; x > -1; x--) {
 						if (channel != null)
-							engine.send("PRIVMSG "+channel+" :"+(x == (outList.size() - 1) ? Engine.italics : "")+outList.get(x));
+							engine.send("PRIVMSG "+channel+" :"+(x == (outList.size() - 1) ? Engine.italics : "")+outList.get(x).replaceAll("&lt;", "<").replaceAll("&gt;", ">"));
 						else
 							System.err.println((x == (outList.size() - 1) ? Engine.italics : "")+outList.get(x));
 					}

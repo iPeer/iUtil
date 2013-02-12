@@ -3,12 +3,13 @@ package com.ipeer.iutil.remote.protocol;
 import java.io.IOException;
 
 import com.ipeer.iutil.engine.Engine;
+import com.ipeer.iutil.engine.youtube;
 import com.ipeer.iutil.remote.server.CannotSavePasswordException;
 import com.ipeer.iutil.remote.server.NoSuchAccountException;
 import com.ipeer.iutil.remote.server.ThreadedClient;
 import com.ipeer.iutil.remote.server.UserAlreadyExistsException;
 import com.ipeer.iutil.remote.server.iUtilAccount;
-import com.ipeer.iutil.remote.server.iUtilServer;
+import com.ipeer.iutil.youtube.YouTube;
 
 
 public class iUtilProtocol {
@@ -31,14 +32,57 @@ public class iUtilProtocol {
 				client.send("\247aYou have been logged out.");
 			}
 			else if (a.matches("(bot)?info(rmation)?")) {
-				String[] s = engine.getInfoStrings();
+				String args = "";
+				try {
+					args = a.split(" ")[1];
+				}
+				catch (ArrayIndexOutOfBoundsException e) { }
+				String[] s = engine.getInfoStrings(args);
 				for (String s1 : s)
 					client.send(s1);
 			}
 			else if (a.startsWith("CLIENTVERSION")) {
-				int v = Integer.valueOf(a.split(" ")[1]);
+				int v = 0;
+				try {
+					v = Integer.valueOf(a.split(" ")[1]);
+				}
+				catch (ArrayIndexOutOfBoundsException e) { 
+					client.send("\247cYour client responded with an invalid version response.");
+					client.terminate();
+				}
 				if (v < client.server.clientVersion)
 					client.send("\247c\247tYour client is outdated. Please download the latest version from https://dl.dropbox.com/u/21719562/Java/iUtil/iUtil-Client.jar");
+			}
+			else if (a.startsWith("setdelay")) {
+				if (!client.isAdmin()) {
+					client.send("\247cYou don't have the rights to use this command.");
+					return;
+				}
+				String[] data = a.split(" ");
+				if (data.length < 3) {
+					client.send("\247cInvalid parameters.");
+					client.send("\247csetdelay THREADNAME DELAYINGINMS");
+					return;
+				}
+				String thread = data[1];
+				long time = Long.valueOf(data[2]);
+				if (thread.equalsIgnoreCase("youtube")) {
+					Engine.YouTube.updateDelay = time;
+					client.send("\247aYouTube thread to update every "+time+"ms.");
+				}
+				else if (thread.equalsIgnoreCase("twitch")) {
+					Engine.twitchTV.updateDelay = time;
+					client.send("\247aTwitch.TV thread to update every "+time+"ms.");
+				}
+				else if (thread.equalsIgnoreCase("awesomestatus")) {
+					engine.serverStatus.updateDelay = time;
+					client.send("\247aAWeSomeStatus thread to update every "+time+"ms.");
+				}
+				else {
+					client.send("\247cUnknown thread!");
+					return;
+				}
+				client.send("Changes will take effect the next time this thread runs.");
 			}
 			else if (a.equals("ping"))
 				client.send("PONG!");
@@ -196,6 +240,9 @@ public class iUtilProtocol {
 				else if (thread.equals("twitch")) {
 					Engine.twitchTV.stop();
 				}
+				else if (thread.equals("awesomestatus")) {
+					engine.serverStatus.stop();
+				}
 				//			else if (thread.equals("awesomechat")) {
 				//				AWeSome.stop();
 				//				AWeSomeCreative.stop();
@@ -223,6 +270,9 @@ public class iUtilProtocol {
 				else if (thread.equals("twitch")) {
 					Engine.twitchTV.start();
 				}
+				else if (thread.equals("awesomestatus")) {
+					engine.serverStatus.start();
+				}
 				//			else if (thread.equals("awesomechat")) {
 				//				AWeSome.start();
 				//				AWeSomeCreative.start();
@@ -244,7 +294,7 @@ public class iUtilProtocol {
 				String[] b = {"Your connection was successful. Your connection ID is \247t"+client.getId()+"\247z.",
 						"Please log in to your account or create a new one.",
 						"To log in to an existing account: /login \247vusername\247z \247vpassword\247z.",
-				"To create a new account: /create \247vusername\247z \247vpassword\247z \247vrepeatpassword\247z.",
+						"To create a new account: /create \247vusername\247z \247vpassword\247z \247vrepeatpassword\247z.",
 				"SENDCLIENTVERSION"};
 				//client.send("CONNECTSUCCESS "+b.length);
 				//client.send(b);

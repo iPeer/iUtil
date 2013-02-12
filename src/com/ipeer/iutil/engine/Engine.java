@@ -26,6 +26,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.lang.management.ManagementFactory;
+//import java.lang.management.OperatingSystemMXBean;
 import java.net.HttpURLConnection;
 import java.net.Socket;
 import java.net.SocketException;
@@ -103,7 +105,7 @@ public class Engine implements Runnable {
 	public static File iUtilAccountsDir = new File("F:\\Dropbox\\Java\\iUtil\\config\\Accounts");
 	public static YouTube YouTube;
 	public static MCChat mindcrack/*, AWeSome, AWeSomeCreative*/;
-	public static AWeSomeChat ASurvival, ACreative;
+	public static AWeSomeChat ASurvival, ACreative, AFTB;
 	public static GuiEngine gui;
 	public static Shell Shell;
 	public static TwitchAnnounce twitchTV;
@@ -123,7 +125,7 @@ public class Engine implements Runnable {
 	protected Twitter twitter;
 	protected Console console;
 	protected iUtilServer debugserver;
-	protected AWeSomeServerStatus serverStatus;
+	public AWeSomeServerStatus serverStatus;
 	protected MinecraftStatusChecker mcStatus;
 
 	private BufferedWriter out;
@@ -256,6 +258,7 @@ public class Engine implements Runnable {
 		//AWeSomeCreative = new MCChat("http://auron.co.uk/mc/chat.php?world=creative", this);
 		ACreative = new AWeSomeChat(this, "/home/minecraft/servers/creative/server.log");
 		ASurvival = new AWeSomeChat(this, "/home/minecraft/servers/survival/server.log");
+		AFTB = new AWeSomeChat(this, "/home/minecraft/servers/ftb/server.log");
 		console = new Console(this);
 		console.start();
 		Shell = new Shell();
@@ -444,6 +447,7 @@ public class Engine implements Runnable {
 			//AWeSomeCreative.start();
 			ASurvival.start();
 			ACreative.start();
+			AFTB.start();
 			//olympics.start();
 			twitchTV.start();
 			serverStatus.start();
@@ -688,7 +692,7 @@ public class Engine implements Runnable {
 	}
 
 	public String iUtilVersion() {
-		return "1.3.6_"+System.getProperty("os.name");
+		return "1.5.12_"+System.getProperty("os.name");
 	}
 
 	public void parseCommand(String l) throws IOException { 
@@ -787,6 +791,9 @@ public class Engine implements Runnable {
 			else if (thread.equals("twitch")) {
 				twitchTV.stop();
 			}
+			else if (thread.equals("awesomestatus")) {
+				serverStatus.stop();
+			}
 			//			else if (thread.equals("awesomechat")) {
 			//				AWeSome.stop();
 			//				AWeSomeCreative.stop();
@@ -814,6 +821,9 @@ public class Engine implements Runnable {
 			}
 			else if (thread.equals("twitch")) {
 				twitchTV.start();
+			}
+			else if (thread.equals("awesomestatus")) {
+				serverStatus.start();
 			}
 			//			else if (thread.equals("awesomechat")) {
 			//				AWeSome.start();
@@ -912,10 +922,13 @@ public class Engine implements Runnable {
 					ASurvival.sendPlayers(sendPrefix, "Survival");
 				else if (commandParams.matches("c(reat(e|ive)?)?"))
 					ACreative.sendPlayers(sendPrefix, "Creative");
+				else if (commandParams.matches("f(eed)?t(he)?b(east)?"))
+					AFTB.sendPlayers(sendPrefix, "FTB");
 			}
 			else {
 				ASurvival.sendPlayers(sendPrefix, "Survival");
 				ACreative.sendPlayers(sendPrefix, "Creative");
+				AFTB.sendPlayers(sendPrefix, "FTB");
 			}
 		}
 
@@ -1016,6 +1029,7 @@ public class Engine implements Runnable {
 			else {
 				MCServerUtils.pollServer(this, sendPrefix, "s.auron.co.uk", 0);
 				MCServerUtils.pollServer(this, sendPrefix, "c.auron.co.uk", 0);
+				MCServerUtils.pollServer(this, sendPrefix, "ftb.auron.co.uk", 0);
 				return;
 			}
 		}
@@ -1032,7 +1046,7 @@ public class Engine implements Runnable {
 		}
 
 		else if (command.matches("(bot)?info(rmation)?")) {
-			String[] out = getInfoStrings();
+			String[] out = getInfoStrings(commandParams);
 			for (String a : out) {
 				send(sendPrefix+a);
 			}
@@ -1279,9 +1293,9 @@ public class Engine implements Runnable {
 		return this.debugserver;
 	}
 	
-	public String[] getInfoString() throws SocketException { return getInfoStrings(); }
+	public String[] getInfoString() throws SocketException { return getInfoStrings(""); }
 	
-	public String[] getInfoStrings() throws SocketException {
+	public String[] getInfoStrings(String args) throws SocketException {
 		
 		long totalMemory = Runtime.getRuntime().totalMemory();
 		long freeMemory = Runtime.getRuntime().freeMemory();
@@ -1296,12 +1310,17 @@ public class Engine implements Runnable {
 		String awesomeupdateo = "";
 		String olyupdateo = "";/*" | Olympics: "+d.format(olympics.updateAt + olympics.updateDelay);*/
 		List<String> outs = new ArrayList<String>();
-		outs.add("Memory Usage: "+memory+" | "+channels.size()+" channels | "+YouTube.channels.size()+" watched users");
-		outs.add("Thread Updates (GMT): "+ytupdateo+twitcho+mcupdateo);
-		outs.add("Connection: "+connection.toString()+", "+connection.getReceiveBufferSize()+", "+connection.getSendBufferSize()+", "+this.ACTUAL_SERVER);
-		outs.add("Java: "+System.getProperty("sun.arch.data.model")+"-bit "+System.getProperty("java.version"));
-		outs.add("Uptimes: "+GuiUtils.formatTime(botStart)+" (Bot) "+GuiUtils.formatTime(connectionStart)+" (Connection)");
-		if (runGUI)
+		if (args.equals("") || args.contains("m"))
+			outs.add("Memory Usage: "+memory+" | "+channels.size()+" channels | "+YouTube.channels.size()+" watched users");
+		if (args.equals("") || args.contains("t"))
+			outs.add("Thread Updates (GMT): "+ytupdateo+twitcho+mcupdateo);
+		if (args.equals("") || args.contains("c"))
+			outs.add("Connection: "+connection.toString()+", "+connection.getReceiveBufferSize()+", "+connection.getSendBufferSize()+", "+this.ACTUAL_SERVER);
+		if (args.equals("") || args.contains("j"))
+			outs.add("Java: "+System.getProperty("sun.arch.data.model")+"-bit "+System.getProperty("java.version")+", C: "+System.getProperty("java.class.version")+" VM: "+System.getProperty("java.vm.version")+" / "+System.getProperty("java.vm.specification.version"));
+		if (args.equals("") || args.contains("u"))
+			outs.add("Uptimes: "+GuiUtils.formatTime(botStart)+" (Bot) "+GuiUtils.formatTime(connectionStart)+" (Connection)");
+		if (runGUI && ((args.equals("") || args.contains("g"))))
 			outs.add("GUI: "+gui.toString()+", "+gui.gui.toString()+", "+gui.hashCode()+"/"+gui.gui.hashCode());
 		
 		String[] a = new String[outs.size()];

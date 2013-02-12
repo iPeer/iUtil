@@ -25,6 +25,7 @@ public class ThreadedMCServerPoller extends Thread {
 	private String server, status, version;
 	private int port, severity;
 	private long ping;
+	private int currPlayers, maxPlayers;
 
 	public ThreadedMCServerPoller(Engine engine, String prefix, String address, int port) {
 		this(engine, prefix, address, port, false);
@@ -91,15 +92,15 @@ public class ThreadedMCServerPoller extends Thread {
 					version = data1[2];
 					this.version = version;
 					motd = data1[3];
-					playerCount = Integer.valueOf(data1[4]);
-					maxPlayers = Integer.valueOf(data1[5]);
+					playerCount = this.currPlayers = Integer.valueOf(data1[4]);
+					maxPlayers = this.maxPlayers = Integer.valueOf(data1[5]);
 				}
 				else {
 					this.version = "unknown";
 					data1 = data.split("\247");
 					motd = data1[0];
-					playerCount = Integer.valueOf(data1[1]);
-					maxPlayers = Integer.valueOf(data1[2]);
+					playerCount = this.currPlayers = Integer.valueOf(data1[1]);
+					maxPlayers = this.maxPlayers = Integer.valueOf(data1[2]);
 				}
 				char c = Engine.colour;
 				long ping2 = System.nanoTime();
@@ -170,15 +171,16 @@ public class ThreadedMCServerPoller extends Thread {
 		}
 
 		if (isStatus) {
-			AWeSomeServerStatus.data.add(getStatusString());
-			if (AWeSomeServerStatus.data.size() == 3)
+			if (!AWeSomeServerStatus.hasDataFor(this.server))
+				AWeSomeServerStatus.data.add(getStatusString());
+			if (AWeSomeServerStatus.data.size() == 4)
 				AWeSomeServerStatus.writeDataToFile();
 		}
 
 	}
 
 	public String getStatusString() {
-		return this.server+"\01"+this.port+"\01"+this.version+"\01"+this.ping+"\01"+this.severity+"\01"+this.status;
+		return this.server+"\01"+this.port+"\01"+this.version+"\01"+this.ping+"\01"+this.severity+"\01"+this.status+"\01"+this.currPlayers+"\01"+this.maxPlayers;
 	}
 	
 	@Override

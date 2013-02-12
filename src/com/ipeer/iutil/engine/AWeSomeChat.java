@@ -2,6 +2,7 @@ package com.ipeer.iutil.engine;
 
 import java.io.BufferedReader;
 import java.io.DataInputStream;
+import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -24,14 +25,14 @@ public class AWeSomeChat implements Runnable {
 	protected Engine engine;
 	public static Properties cache;
 	private String server;
-	private Properties deathCounter;
+	//private Properties deathCounter;
 	private File deathsFile = new File("AWeSomeDeaths.dat");
 	private Thread thread;
 
 	public AWeSomeChat(Engine engine, String file) {
 		this.engine = engine;
 		this.file = new File(file);
-		this.deathCounter = new Properties();
+		//this.deathCounter = new Properties();
 		loadDeathCounterData();
 		if (engine == null)
 			logout = new File("F:\\Dropbox\\Java\\iUtil\\");
@@ -52,7 +53,7 @@ public class AWeSomeChat implements Runnable {
 		File a = new File("AWeSomeDeaths.dat");
 		if (a.exists())
 			try {
-				deathCounter.load(new FileInputStream(a));
+				youtube.deathCounter.load(new FileInputStream(a));
 			} catch (Exception e) {
 				System.err.println("Unable to load death counter data");
 				e.printStackTrace();
@@ -63,8 +64,9 @@ public class AWeSomeChat implements Runnable {
 		if (this.IS_RUNNING)
 			return;
 		this.IS_RUNNING = true;
-		String s = ((file.getAbsolutePath()).toLowerCase().contains("creative")) ? "Creative" : "Survival";
+		String s = ((file.getAbsolutePath()).toLowerCase().contains("creative")) ? "Creative" : (file.getAbsolutePath().toLowerCase().contains("ftb") ? "FTB" : "Survival");
 		this.server = s;
+		System.out.println("Starting server chat crawler for "+s+" server");
 		(thread = new Thread(this, "AWeSome Chat ("+s+")")).start();
 	}
 
@@ -79,34 +81,38 @@ public class AWeSomeChat implements Runnable {
 		//a.start();
 		a.setOnline("iPeer");
 		a.setOnline("Auron956");
-		a.start();
-		a.stop();
+		//a.start();
+/*		a.parseLine("2013-01-09 14:58:53 [INFO] Auron956 lost connection: disconnect.endOfStream", "survival");
+		a.parseLine("2013-01-09 16:13:45 [INFO] iPeer lost connection: disconnect.quitting", "survival");*/
+		a.parseLine("2013-02-05 01:04:08 [WARNING] Failed to handle packet for Auron956/78.105.52.16: java.lang.NullPointerException", "ftb");
 	}
 
 	@Override
 	public void run() {
 		try {
-			String c = ((file.getAbsolutePath()).toLowerCase().contains("creative")) ? "Creative" : "Survival";
+			String c = ((file.getAbsolutePath()).toLowerCase().contains("creative")) ? "Creative" : (file.getAbsolutePath().toLowerCase().contains("ftb") ? "FTB" : "Survival");
 			this.server = c;
 			//Reader a = new FileReader(file);
 			//BufferedReader b = new BufferedReader(a);
 			readOnlineFromFile();
 			RandomAccessFile b = new RandomAccessFile(file, "r");
 			String line = null;
-
+			System.out.println("Tailing file of "+this.server+", "+file.getAbsolutePath());
 			while (IS_RUNNING && !Thread.interrupted()) {
-				long marker = Long.valueOf(cache.getProperty(c, Long.toString(b.length())));
+				long marker = Long.valueOf(cache.getProperty(c, Long.toString(0)));
 				//				cache.put(c, Long.toString(marker));
 				//				cache.store(new FileOutputStream(Engine.AWeSomeChatCache), "");
 				b.seek(marker);
+				//System.out.println(b.length()+", "+b.toString());
 				if ((line = b.readLine()) != null) {
+					//System.out.println(line);
 					long newMarker = b.getFilePointer();
 					if (line.length() > 0)
 						try {
 							parseLine(line, c);
 						}
-					catch (ConcurrentModificationException e) { }
-					if (engine.serverEnabled())
+					catch (ConcurrentModificationException e) { System.err.println("Concurrent Modification error ocurred ("+c+")"); }
+					if (engine != null && engine.serverEnabled())
 						engine.getServer().sendToAllAdminClients("AWeSome Chat -> ("+c+") O: "+marker+", N: "+newMarker);
 					cache.put(c, Long.toString(newMarker));
 					cache.store(new FileOutputStream(Engine.AWeSomeChatCache), "");
@@ -147,16 +153,22 @@ public class AWeSomeChat implements Runnable {
 			}
 		}
 
-		else if (line.contains("lost connection:")) {
+		else if (line.contains("lost connection:") || (line.contains("Failed to handle packet") && online.contains(line.split(" ")[8].split("/")[0]))) {
 			String u = line.split(" ")[3];
+			String reason = line.split(" ")[6];
+					//2013-01-09 14:58:53 [INFO] Auron956 lost connection: disconnect.endOfStream
+			if (line.contains("Failed to handle packet")) {
+				u = line.split(" ")[8].split("/")[0];
+				reason = "Failed to handle packet: "+line.split(":")[3].trim();
+			}
 			if (online.contains(u)) {
 				setOffline(u);
-				writeToLog(line.split(" ")[0]+" "+line.split(" ")[1]+" "+u+" disconnected.", c);
+				writeToLog(line.split(" ")[0]+" "+line.split(" ")[1]+" "+u+" disconnected."+(!reason.equals("disconnect.quitting") ? " ("+reason+")" : ""), c);
 				if (engine != null) {
-					engine.send("PRIVMSG #QuestHelp :"+prefix+" "+u+" disconnected.");
+					engine.send("PRIVMSG #QuestHelp :"+prefix+" "+u+" disconnected."+(!reason.equals("disconnect.quitting") ? " ("+reason+")" : ""));
 				}
 				else
-					System.err.println(u+" disconnected.");
+					System.err.println(u+" disconnected."+(!reason.equals("disconnect.quitting") ? " ("+reason+")" : ""));
 			}
 		}
 
@@ -175,7 +187,7 @@ public class AWeSomeChat implements Runnable {
 			String out = "";
 			String[] data = line.split(" ");
 			String user = data[3];
-			int deaths = (Integer.valueOf(deathCounter.getProperty(user+"-"+c, "0")) + 1);
+			int deaths = (Integer.valueOf(youtube.deathCounter.getProperty(user+"-"+c, "0")) + 1);
 			String deathsOut = user+" has died "+(deaths == 1 ? "for the first time!" : deaths+" times!");
 			for (int x = 3; x < data.length; x++)
 				out = out+(out.length() > 0 ? " " : "")+data[x];
@@ -188,8 +200,8 @@ public class AWeSomeChat implements Runnable {
 				System.err.println(out);
 				System.err.println(deathsOut);
 			}
-			deathCounter.setProperty(user+"-"+c, Integer.toString(deaths));
-			deathCounter.store(new FileOutputStream(deathsFile), "AWeSome Death Counter Data");
+			youtube.deathCounter.setProperty(user+"-"+c, Integer.toString(deaths));
+			youtube.deathCounter.store(new FileOutputStream(deathsFile), "AWeSome Death Counter Data");
 		}
 		else if (line.contains("Stopping server")) {
 			if (!online.isEmpty()) {
@@ -229,7 +241,7 @@ public class AWeSomeChat implements Runnable {
 		if (!online.contains(user) || online.isEmpty())
 			return;
 		online.remove(user);
-		if (engine.serverEnabled())
+		if (engine != null && engine.serverEnabled())
 			engine.getServer().sendToAllAdminClients("AweSome Chat ("+this.server+") -> set offline: "+user);
 		writeOnlineToFile();
 	}
@@ -261,7 +273,7 @@ public class AWeSomeChat implements Runnable {
 				online.add(l);
 			b.close();
 		} catch (Exception e) {
-			System.err.println("Unable to load online users!");
+			System.err.println("["+server+"] Unable to load online users!");
 			e.printStackTrace();
 		}
 

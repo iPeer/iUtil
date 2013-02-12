@@ -35,8 +35,13 @@ public class Channel implements Runnable {
 	public boolean IS_RUNNING;
 	public long updateAt = 0L;
 	private Thread thread;
+	private YouTube youtube;
 
 	public Channel(String user) throws FileNotFoundException, IOException {
+		this(user, null);
+	}
+
+	public Channel(String user, YouTube youTube) throws FileNotFoundException, IOException {
 		this.cache = new Properties();
 		File a = new File(Engine.YouTubeVIDCache, user+".iuc");
 		if (a.exists())
@@ -47,6 +52,7 @@ public class Channel implements Runnable {
 		}
 		this.user = this.channelName = user;
 		this.uploads = loadCache();
+		this.youtube = youTube;
 	}
 
 	public void start() {
@@ -65,7 +71,7 @@ public class Channel implements Runnable {
 			try {
 				update();
 				updateAt = System.currentTimeMillis();
-				Thread.sleep((YouTube.errored ? 1800000 : 600000)/* + (long)new Random().nextInt(120000)*/);
+				Thread.sleep((youtube.updateDelay)/* + (long)new Random().nextInt(120000)*/);
 			}
 			catch (NullPointerException e) { 
 				e.printStackTrace();
@@ -143,19 +149,20 @@ public class Channel implements Runnable {
 				announce(title, duration, videoID);
 				saveCache();
 			}
-			YouTube.updateSuccesses++;
-			if (YouTube.updateSuccesses >= YouTube.numChannels) {
-				YouTube.errors = 0;
-				YouTube.errored = false;
+			youtube.updateSuccesses++;
+			if (youtube.updateSuccesses >= youtube.numChannels) {
+				youtube.errors = 0;
+				youtube.errored = false;
+				youtube.updateDelay = 600000;
 			}
 
 		}
 		catch (IOException e) {
-			YouTube.updateSuccesses = 0;
-			YouTube.errors++;
-			if (YouTube.errors > 2)
+			youtube.updateSuccesses = 0;
+			youtube.errors++;
+			if (youtube.errors > 3)
 				return;
-			String e1 = "[YouTube, Strike: "+YouTube.errors+"] The following error occured while updating "+this.user+": "+e.toString()+": "+e.getStackTrace()[0];
+			String e1 = "[YouTube, Strike: "+youtube.errors+"] The following error occured while updating "+this.user+": "+e.toString()+": "+e.getStackTrace()[0];
 			Engine e2 = Engine.engine;
 			if (e2 == null)
 				System.err.println(e1);
@@ -165,10 +172,10 @@ public class Channel implements Runnable {
 				Engine.engine.amsg(e1); 
 			}
 			e.printStackTrace();
-			if (YouTube.errors >= 2) {
-
-				YouTube.errored = true;
-				e2.amsg("Due to prolonged errors, the YouTube announcer has been set to a longer interval. Once "+Engine.underline+"ALL"+Engine.underline+" thread update succesfully, the interval will be returned to normal.");
+			if (youtube.errors == 3) {
+				youtube.updateDelay = 1800000;
+				youtube.errored = true;
+				e2.amsg("Due to prolonged errors, the YouTube announcer has been set to a longer interval. Once "+Engine.underline+"ALL"+Engine.underline+" threads update succesfully, the interval will be returned to normal.");
 			}
 		}
 
