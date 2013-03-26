@@ -1,0 +1,5 @@
+login.minecraft.net395upHTTP 200
+account.mojang.com384upHTTP 200
+ipeer.auron.co.uk170downHTTP 503
+session.minecraft.net385upHTTP 200
+skins.minecraft.net251upHTTP 200

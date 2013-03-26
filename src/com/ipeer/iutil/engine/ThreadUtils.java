@@ -2,7 +2,7 @@ package com.ipeer.iutil.engine;
 
 import java.util.Properties;
 
-public class youtube {
+public class ThreadUtils {
 
 	public volatile long YouTubeupdateDelay = 600000;
 	public static volatile Properties deathCounter = new Properties();
