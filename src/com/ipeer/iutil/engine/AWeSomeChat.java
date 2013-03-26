@@ -53,7 +53,7 @@ public class AWeSomeChat implements Runnable {
 		File a = new File("AWeSomeDeaths.dat");
 		if (a.exists())
 			try {
-				youtube.deathCounter.load(new FileInputStream(a));
+				ThreadUtils.deathCounter.load(new FileInputStream(a));
 			} catch (Exception e) {
 				System.err.println("Unable to load death counter data");
 				e.printStackTrace();
@@ -187,7 +187,7 @@ public class AWeSomeChat implements Runnable {
 			String out = "";
 			String[] data = line.split(" ");
 			String user = data[3];
-			int deaths = (Integer.valueOf(youtube.deathCounter.getProperty(user+"-"+c, "0")) + 1);
+			int deaths = (Integer.valueOf(ThreadUtils.deathCounter.getProperty(user+"-"+c, "0")) + 1);
 			String deathsOut = user+" has died "+(deaths == 1 ? "for the first time!" : deaths+" times!");
 			for (int x = 3; x < data.length; x++)
 				out = out+(out.length() > 0 ? " " : "")+data[x];
@@ -200,8 +200,8 @@ public class AWeSomeChat implements Runnable {
 				System.err.println(out);
 				System.err.println(deathsOut);
 			}
-			youtube.deathCounter.setProperty(user+"-"+c, Integer.toString(deaths));
-			youtube.deathCounter.store(new FileOutputStream(deathsFile), "AWeSome Death Counter Data");
+			ThreadUtils.deathCounter.setProperty(user+"-"+c, Integer.toString(deaths));
+			ThreadUtils.deathCounter.store(new FileOutputStream(deathsFile), "AWeSome Death Counter Data");
 		}
 		else if (line.contains("Stopping server")) {
 			if (!online.isEmpty()) {

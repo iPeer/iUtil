@@ -63,7 +63,7 @@ public class AWeSomeServerStatus implements Runnable {
 			(new ThreadedMCServerPoller(this.engine, null, "ftb.auron.co.uk", 25568, true)).start();
 			(new ThreadedMCServerPoller(this.engine, null, "e.auron.co.uk", 25567, true)).start();
 			calendar.setTime(new Date(System.currentTimeMillis()));
-			writeToLog("Updating AWeSme Status @ "+calendar.getTime());
+			writeToLog("Updating AWeSome Status @ "+calendar.getTime());
 			try {
 				Thread.sleep(updateDelay);
 			} catch (InterruptedException e) {
@@ -77,7 +77,8 @@ public class AWeSomeServerStatus implements Runnable {
 		try {
 			File a = new File("AWeSomeStatus.txt");
 			FileWriter b = new FileWriter(a);
-			for (Iterator<String> it = data.iterator(); it.hasNext();) {
+			Iterator<String> it = data.iterator();
+			while (it.hasNext()) {
 				b.write(it.next()+"\n");
 				it.remove();
 			}

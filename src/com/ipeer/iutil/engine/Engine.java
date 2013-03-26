@@ -26,8 +26,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.lang.management.ManagementFactory;
-//import java.lang.management.OperatingSystemMXBean;
 import java.net.HttpURLConnection;
 import java.net.Socket;
 import java.net.SocketException;
@@ -64,12 +62,16 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 
+import com.ipeer.iutil.awesome.enderchests.Enderchest;
+import com.ipeer.iutil.awesome.enderchests.EnderchestExistsException;
+import com.ipeer.iutil.awesome.enderchests.Enderchests;
 import com.ipeer.iutil.gui.GuiEngine;
 import com.ipeer.iutil.gui.GuiUtils;
 import com.ipeer.iutil.remote.server.iUtilServer;
 import com.ipeer.iutil.shell.Shell;
 import com.ipeer.iutil.youtube.YouTube;
 import com.ipeer.minecraft.servers.MCServerUtils;
+//import java.lang.management.OperatingSystemMXBean;
 
 public class Engine implements Runnable {
 
@@ -103,9 +105,11 @@ public class Engine implements Runnable {
 	public static File twitchCache = new File("F:\\Dropbox\\Java\\iUtil\\caches\\twitch\\");
 	public static File twitchConfig = new File("F:\\Dropbox\\Java\\iUtil\\config\\TwitchTV.cfg");
 	public static File iUtilAccountsDir = new File("F:\\Dropbox\\Java\\iUtil\\config\\Accounts");
+	public static File AWeSomeEnderchests = new File("AWeSomeEnderchests.iuc");
 	public static YouTube YouTube;
 	public static MCChat mindcrack/*, AWeSome, AWeSomeCreative*/;
 	public static AWeSomeChat ASurvival, ACreative, AFTB;
+	public static Enderchests enderchests;
 	public static GuiEngine gui;
 	public static Shell Shell;
 	public static TwitchAnnounce twitchTV;
@@ -137,6 +141,8 @@ public class Engine implements Runnable {
 
 	private static FileWriter logWriter;
 	public static Engine engine;
+	private Calendar log = Calendar.getInstance();
+	public boolean announceMCStatus = true;
 
 
 	public Engine(String nick, String server, int port, boolean SSL, String password, boolean ignoreLock, boolean runIdentd, boolean reconnecting, boolean runGUI, boolean runDebugServer) throws IOException {
@@ -265,6 +271,7 @@ public class Engine implements Runnable {
 		twitchTV = new TwitchAnnounce(this);
 		serverStatus = new AWeSomeServerStatus(this);
 		mcStatus = new MinecraftStatusChecker();
+		enderchests = new Enderchests(this);
 		engine = this;
 	}
 
@@ -365,7 +372,7 @@ public class Engine implements Runnable {
 			}
 		}
 		catch (Exception e) {
-			System.err.println("Unable to connect, terminating.");
+			System.err.println("Unable to connect to "+server+":"+port+", terminating.");
 			e.printStackTrace();
 			System.exit(1);	
 		}
@@ -692,7 +699,7 @@ public class Engine implements Runnable {
 	}
 
 	public String iUtilVersion() {
-		return "1.5.12_"+System.getProperty("os.name");
+		return "1.5.17_"+System.getProperty("os.name");
 	}
 
 	public void parseCommand(String l) throws IOException { 
@@ -794,6 +801,9 @@ public class Engine implements Runnable {
 			else if (thread.equals("awesomestatus")) {
 				serverStatus.stop();
 			}
+			else if (thread.equals("downtime")) {
+				announceMCStatus = false;
+			}
 			//			else if (thread.equals("awesomechat")) {
 			//				AWeSome.stop();
 			//				AWeSomeCreative.stop();
@@ -824,6 +834,9 @@ public class Engine implements Runnable {
 			}
 			else if (thread.equals("awesomestatus")) {
 				serverStatus.start();
+			}
+			else if (thread.equals("downtime")) {
+				announceMCStatus = true;
 			}
 			//			else if (thread.equals("awesomechat")) {
 			//				AWeSome.start();
@@ -1061,6 +1074,55 @@ public class Engine implements Runnable {
 				GetLatestVideo.lookupLatestVideo(this, outType, pub ? target : nick, commandParams);
 			}
 		}
+		
+		else if (command.matches("(add|register)(awesome)?enderchest")) {
+			String[] d = commandParams.split(" ");
+			boolean switches = d[0].startsWith("-");
+			if (switches) {
+				if (d[0].startsWith("-r")) { // remove a chest
+					//String chestName = d[1];
+					String chestName = d[1];
+					for (int x = 2; x < d.length; x++) 
+						chestName += " "+d[x];
+					Iterator it = enderchests.getChestList().iterator();
+					while (it.hasNext()) {
+						Enderchest chest = (Enderchest)it.next();
+						//send(sendPrefix+chest.getUsage()+" // "+chestName+" "+chest.getUsage().equals(chestName)+" // "+chest.getRegistrar()+" // "+nick+" "+(chest.getRegistrar().equals(nick)));
+						if (chest.getUsage().equals(chestName) && chest.getRegistrar().equals(nick)) {
+							send(sendPrefix+"Chest \""+chest.getUsage()+"\" has been removed from the  database.");
+							it.remove();
+							enderchests.saveChests();
+							return;
+						}
+					}
+					send(sendPrefix+"No chest called \""+chestName+"\" found registered by your nick "+"("+nick+")");
+					return;
+				}
+			}
+			if (d.length < 4) { 
+				send(sendPrefix+"Insufficient parameters. Requires 3 colours and a chest name.");
+				send(sendPrefix+"<colour1> <colour2> <colour3> <name>");
+				return;
+			}
+			String name = d[3];
+			for (int x = 4; x < d.length; x++) 
+				name += " "+d[x];
+			Enderchest chest = new Enderchest(d[0], d[1], d[2], nick, name);
+			try {
+				enderchests.registerChest(chest);
+				send(sendPrefix+enderchests.saveChests());
+			}
+			catch (EnderchestExistsException eee) {
+				send(sendPrefix+"A chest with that name or colour combination already exists.");
+				return;
+			}
+		}
+		
+		else if (command.equals("reloadenderchestlist") && userIsAdmin) {
+			List<Enderchest> ec = enderchests.getChestList();
+			enderchests = new Enderchests(this);
+			send(sendPrefix+ec.toString()+" ("+ec.size()+") -> "+enderchests.getChestList().toString()+" ("+enderchests.getChestList().size()+")");
+		}
 
 		else if (command.matches("calc(ulat[oe]r?)?")) {
 			String line = "";
@@ -1199,7 +1261,9 @@ public class Engine implements Runnable {
 		if (s.startsWith("-> PRIVMSG NickServ :identify"))
 			return;
 		//logWriter.seek(logWriter.length());
-		logWriter.write(s+"\r\n");
+		log.setTime(new Date(System.currentTimeMillis()));
+		DateFormat date = new SimpleDateFormat("dd/MM/yy HH:mm:ss");
+		logWriter.write(date.format(log.getTime())+" "+s+"\r\n");
 		logWriter.flush();
 		//logWriter.write(s);
 		//logWriter.flush();
