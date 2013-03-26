@@ -89,12 +89,11 @@ public class MinecraftStatusChecker implements Runnable {
 				while (it.hasNext()) {
 					Map.Entry<String, HashMap<String, String>> da = it.next();
 					String k = da.getKey();
-					//					if ((!statuses.containsKey(k) 
-					//							|| !times.containsKey(k)) 
-					//							|| (((!statuses.get(k).equals(da.getValue().get("status")) && System.currentTimeMillis() - times.get(k) >= 120000) 
-					//							|| (statuses.get(k).equals(da.getValue().get("status")) && System.currentTimeMillis() - times.get(k) >= 900000)))
-					//							)
-					if (!statuses.containsKey(k) || !times.containsKey(k) || (!statuses.get(k).equals(da.getValue().get("status")) && System.currentTimeMillis() - times.get(k) >= 60000))
+					if ((!statuses.containsKey(k) 
+							|| !times.containsKey(k)) 
+							|| (((!statuses.get(k).equals(da.getValue().get("status")) && System.currentTimeMillis() - times.get(k) >= 120000) 
+							|| (statuses.get(k).equals(da.getValue().get("status")) && System.currentTimeMillis() - times.get(k) >= 30000)))
+							)
 						announceStatus(k, da.getValue());
 				}
 
@@ -115,20 +114,15 @@ public class MinecraftStatusChecker implements Runnable {
 
 	private void announceStatus(String k, HashMap<String, String> value) {
 		Engine e = Engine.engine;
-		if (!e.announceMCStatus)
-			return;
+		statuses.put(k,	value.get("status"));
 		boolean reAnnounce = (times.get(k) != null && System.currentTimeMillis() - times.get(k) >= 900000 && (statuses.get(k) != null && !statuses.get(k).equals("HTTP 200")));
 		times.put(k, System.currentTimeMillis());
-		if (statuses.get(k) == null)
-			statuses.put(k, "HTTP 200");
-		//System.err.println(statuses.get(k)+", "+value.get("status"));
-		if (reAnnounce || !value.get("status").equals(statuses.get(k))) {
-			statuses.put(k,	value.get("status"));
-			if (e == null)
-				System.err.println(k+" "+(value.get("status").equals("HTTP 200") ? "is back online!" : (reAnnounce ? "is still down. (" : "is reporting downtime! ("+value.get("status")+")")));
-			else
-				e.amsg(prefix()+c2(k)+c1(" "+(value.get("status").equals("HTTP 200") ? "is back online!" : (reAnnounce ? "is still down. (" : "is reporting downtime! (")+c2(value.get("status"))+c1(")"))));
-		}
+		if ((firstCheck && value.get("status").equals("HTTP 200")) || Utils.bothEqual(value.get("status"), statuses.get(k), "HTTP 200"))
+			return;
+		if (e == null)
+			System.err.println(k+" "+(value.get("status").equals("HTTP 200") ? "is back online!" : (reAnnounce ? "is still down. (" : "is reporting downtime! ("+value.get("status")+")")));
+		else
+			e.amsg(prefix()+c2(k)+c1(" "+(value.get("status").equals("HTTP 200") ? "is back online!" : (reAnnounce ? "is still down. (" : "is reporting downtime! (")+c2(value.get("status"))+c1(")"))));
 	}
 
 	private String c1(String s) {
@@ -140,7 +134,7 @@ public class MinecraftStatusChecker implements Runnable {
 	}
 
 	private String prefix() {
-		return c1("[")+c2("Minecraft Status")+c1("]: ");
+		return c1("[")+c2("Minecraft Status")+c1("] ");
 	}
 
 	private void writeDataToFile(HashMap<String, HashMap<String, String>> a) throws IOException {
@@ -253,7 +247,6 @@ public class MinecraftStatusChecker implements Runnable {
 			a.setRequestMethod(method);
 			a.setConnectTimeout(5000);
 			a.setReadTimeout(5000);
-			//System.err.println(a.getResponseCode());
 			b.put("status", getErrorName(a.getResponseCode()));
 		}
 		catch (UnknownHostException e) {

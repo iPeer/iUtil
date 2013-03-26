@@ -189,11 +189,4 @@ return 0;
 		return string.equals(string3) && string2.equals(string3);
 	}
 
-	public static String intArrayToString(int[] array) {
-		String out = "{";
-		for (int x = 0; x < array.length; x++) 
-			out += (out.length() > 1 ? ", " : "")+array[x];
-		return out+"}";
-	}
-
 }

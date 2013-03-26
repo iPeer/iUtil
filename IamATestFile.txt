@@ -1,8 +1,0 @@
-﻿This damn tailing
-will not work
-properly
-for some fucking reason
-when the file
-is read
-as 
-UTF-8

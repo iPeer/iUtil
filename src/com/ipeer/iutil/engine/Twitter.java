@@ -2,11 +2,9 @@ package com.ipeer.iutil.engine;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.net.ssl.HttpsURLConnection;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
@@ -32,11 +30,10 @@ public class Twitter {
 		DocumentBuilder a;
 		try {
 
+
 			a = f.newDocumentBuilder();
-			HttpsURLConnection http = (HttpsURLConnection)new URL("https://api.twitter.com/1.1/statuses/show.xml?id="+statusID).openConnection();
-			//http.addRequestProperty(key, value)
 			Document doc = a.newDocument();
-			doc = a.parse("https://api.twitter.com/1.1/statuses/show.xml?id="+statusID);
+			doc = a.parse("https://api.twitter.com/1/statuses/show.xml?id="+statusID);
 			NodeList n = doc.getElementsByTagName("text").item(0).getChildNodes();
 			tweetText = n.item(0).getNodeValue().replaceAll("&amp;", "&").replaceAll("\n", " ");
 			n = doc.getElementsByTagName("screen_name").item(0).getChildNodes();
