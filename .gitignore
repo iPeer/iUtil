@@ -18,6 +18,14 @@ local.properties
 logs/*
 caches/*
 config/*
+*.iuc
+AWeSomeOnline-*
+log.log
+*testfile*
+*.iaf
+AWeSomeStatus.*
+AWeSomeDeaths.*
+MinecraftStatus.*
 
 # External tool builders
 .externalToolBuilders/
