@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.URISyntaxException;
@@ -71,6 +72,7 @@ import com.ipeer.iutil.remote.server.iUtilServer;
 import com.ipeer.iutil.shell.Shell;
 import com.ipeer.iutil.youtube.YouTube;
 import com.ipeer.minecraft.servers.MCServerUtils;
+import com.ipeer.minecraft.servers.Query;
 //import java.lang.management.OperatingSystemMXBean;
 
 public class Engine implements Runnable {
@@ -107,7 +109,7 @@ public class Engine implements Runnable {
 	public static File iUtilAccountsDir = new File("F:\\Dropbox\\Java\\iUtil\\config\\Accounts");
 	public static File AWeSomeEnderchests = new File("AWeSomeEnderchests.iuc");
 	public static YouTube YouTube;
-	public static MCChat mindcrack/*, AWeSome, AWeSomeCreative*/;
+	//public static MCChat mindcrack/*, AWeSome, AWeSomeCreative*/;
 	public static AWeSomeChat ASurvival, ACreative, AFTB;
 	public static Enderchests enderchests;
 	public static GuiEngine gui;
@@ -129,12 +131,12 @@ public class Engine implements Runnable {
 	protected Twitter twitter;
 	protected Console console;
 	protected iUtilServer debugserver;
-	public AWeSomeServerStatus serverStatus;
+	public ThreadedAWeSomeStatus serverStatus;
 	protected MinecraftStatusChecker mcStatus;
 
 	private BufferedWriter out;
 	private BufferedReader in;
-	
+
 	private String[] commandLine;
 
 	private Map<String, String> networkSettings = new HashMap<String, String>();
@@ -257,53 +259,56 @@ public class Engine implements Runnable {
 		utils = new Utils(this);
 		writeToLog("-> STARTING UP");
 		//twitter = new Twitter(this);
-		YouTube = new YouTube(this);
-		//olympics = new Olympics(this);
-		mindcrack = new MCChat("http://guudelp.com/serverlog.cgi", this);
-		//AWeSome = new MCChat("http://auron.co.uk/mc/chat.php", this);
-		//AWeSomeCreative = new MCChat("http://auron.co.uk/mc/chat.php?world=creative", this);
-		ACreative = new AWeSomeChat(this, "/home/minecraft/servers/creative/server.log");
-		ASurvival = new AWeSomeChat(this, "/home/minecraft/servers/survival/server.log");
-		AFTB = new AWeSomeChat(this, "/home/minecraft/servers/ftb/server.log");
-		console = new Console(this);
-		console.start();
-		Shell = new Shell();
-		twitchTV = new TwitchAnnounce(this);
-		serverStatus = new AWeSomeServerStatus(this);
-		mcStatus = new MinecraftStatusChecker();
-		enderchests = new Enderchests(this);
-		engine = this;
+		try {
+			YouTube = new YouTube(this);
+			//olympics = new Olympics(this);
+			//mindcrack = new MCChat("http://guudelp.com/serverlog.cgi", this);
+			//AWeSome = new MCChat("http://auron.co.uk/mc/chat.php", this);
+			//AWeSomeCreative = new MCChat("http://auron.co.uk/mc/chat.php?world=creative", this);
+			ACreative = new AWeSomeChat(this, "/home/minecraft/servers/creative/server.log");
+			ASurvival = new AWeSomeChat(this, "/home/minecraft/servers/survival/server.log");
+			AFTB = new AWeSomeChat(this, "/home/minecraft/servers/ftb/server.log");
+			console = new Console(this);
+			console.start();
+			Shell = new Shell();
+			twitchTV = new TwitchAnnounce(this);
+			serverStatus = new ThreadedAWeSomeStatus(new InetSocketAddress("auron.co.uk", 35565), new InetSocketAddress("auron.co.uk", 35566), new InetSocketAddress("auron.co.uk", 35567), new InetSocketAddress("auron.co.uk", 35568));;
+			mcStatus = new MinecraftStatusChecker();
+			enderchests = new Enderchests(this);
+			engine = this;
+		}
+		catch (Exception e) { e.printStackTrace(); }
 	}
 
 	public void restart(String nick) {
-//		if (System.getProperty("os.name").startsWith("Windows")) {
-//						try {
-//							String jar = Engine.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
-//							jar = jar.substring(1);
-//							ArrayList<String> p = new ArrayList<String>();
-//							p.add("java");
-//							p.add("-jar");
-//							p.add(jar);
-//							p.add("-port="+this.port);
-//							p.add("-ssl="+this.SSL);
-//							p.add("-s="+this.server);
-//							p.add("-n="+MY_NICK);
-//							p.add("-p="+this.password);
-//							p.add("-force");
-//							ProcessBuilder a = new ProcessBuilder(p);
-//							if (isConnected)
-//								send("QUIT :Restart command recieved from "+nick);
-//							Process b = a.start();
-//							System.exit(0);
-//						}
-//						catch (Exception e) {
-//							System.err.println("Unable to restart: "+e.toString());
-//							e.printStackTrace();
-//						}
-//		}
-//		else {
-//			doJavaRestart();
-//		}
+		//		if (System.getProperty("os.name").startsWith("Windows")) {
+		//						try {
+		//							String jar = Engine.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+		//							jar = jar.substring(1);
+		//							ArrayList<String> p = new ArrayList<String>();
+		//							p.add("java");
+		//							p.add("-jar");
+		//							p.add(jar);
+		//							p.add("-port="+this.port);
+		//							p.add("-ssl="+this.SSL);
+		//							p.add("-s="+this.server);
+		//							p.add("-n="+MY_NICK);
+		//							p.add("-p="+this.password);
+		//							p.add("-force");
+		//							ProcessBuilder a = new ProcessBuilder(p);
+		//							if (isConnected)
+		//								send("QUIT :Restart command recieved from "+nick);
+		//							Process b = a.start();
+		//							System.exit(0);
+		//						}
+		//						catch (Exception e) {
+		//							System.err.println("Unable to restart: "+e.toString());
+		//							e.printStackTrace();
+		//						}
+		//		}
+		//		else {
+		//			doJavaRestart();
+		//		}
 		try {
 			doJavaRestart();
 		} catch (Exception e) {
@@ -320,7 +325,7 @@ public class Engine implements Runnable {
 		a.add(Engine.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath().substring(1));
 		for (String b : commandLine)
 			a.add(b);
-		
+
 		String[] cmdarray = new String[a.size()];
 		a.toArray(cmdarray);
 		Runtime.getRuntime().exec(cmdarray);
@@ -337,19 +342,19 @@ public class Engine implements Runnable {
 
 	public void stop() {
 		this.isRunning = false;
-//		try {
-//			ACreative.stop();
-//			ASurvival.stop();
-//			YouTube.saveAllCaches();
-//			YouTube.saveUsernames();
-//			YouTube.stopAll();
-//			mindcrack.stop();
-//		}
-//		catch (Exception e) {
-//			System.err.println("Cound not stop cleanly, terminating.");
-//			e.printStackTrace();
-//			System.exit(1);
-//		}
+		//		try {
+		//			ACreative.stop();
+		//			ASurvival.stop();
+		//			YouTube.saveAllCaches();
+		//			YouTube.saveUsernames();
+		//			YouTube.stopAll();
+		//			mindcrack.stop();
+		//		}
+		//		catch (Exception e) {
+		//			System.err.println("Cound not stop cleanly, terminating.");
+		//			e.printStackTrace();
+		//			System.exit(1);
+		//		}
 	}
 
 	public void connect() {
@@ -449,7 +454,7 @@ public class Engine implements Runnable {
 			for (String c : autoJoin)
 				join(c);
 			YouTube.loadChannels();
-			mindcrack.start();
+			//mindcrack.start();
 			//AWeSome.start();
 			//AWeSomeCreative.start();
 			ASurvival.start();
@@ -554,7 +559,7 @@ public class Engine implements Runnable {
 					getServer().sendToAllAdminClients(messageOut);
 				else
 					getServer().sendToAllClients(messageOut);
-				
+
 			if (runGUI)
 				gui.gui.addTextHistory(messageOut);
 
@@ -699,7 +704,7 @@ public class Engine implements Runnable {
 	}
 
 	public String iUtilVersion() {
-		return "1.5.17_"+System.getProperty("os.name");
+		return "1.5.24_"+System.getProperty("os.name");
 	}
 
 	public void parseCommand(String l) throws IOException { 
@@ -789,10 +794,10 @@ public class Engine implements Runnable {
 
 		else if (command.startsWith("stop") && userIsAdmin) {				
 			String thread = message.split("stop ")[1];
-			if (thread.equals("mcchat")) {
+			/*if (thread.equals("mcchat")) {
 				mindcrack.stop();
 			}
-			else if (thread.equals("youtube")) {
+			else */if (thread.equals("youtube")) {
 				YouTube.stopAll();
 			}
 			else if (thread.equals("twitch")) {
@@ -822,11 +827,11 @@ public class Engine implements Runnable {
 
 		else if (command.startsWith("start") && userIsAdmin) {
 			String thread = message.split("start ")[1];
-			if (thread.equals("mcchat")) {
+			/*if (thread.equals("mcchat")) {
 				mindcrack.silent = true;
 				mindcrack.start();
 			}
-			else if (thread.equals("youtube")) {
+			else */if (thread.equals("youtube")) {
 				YouTube.startAll();
 			}
 			else if (thread.equals("twitch")) {
@@ -863,12 +868,12 @@ public class Engine implements Runnable {
 			String user = commandParams;
 			YouTube.removeChannel(user);
 		}
-		
+
 		else if (command.startsWith("addtwitch") && userIsAdmin) {
 			String user = commandParams;
 			twitchTV.addUser(user);
 		}
-		
+
 		else if (command.startsWith("deltwitch") && userIsAdmin) {
 			String user = commandParams;
 			twitchTV.delUser(user);
@@ -886,7 +891,21 @@ public class Engine implements Runnable {
 			send(sendPrefix+networks.toString());
 		}
 
-		if (command.matches("force(y(ou)?t(ube)?)?update") && userIsAdmin) {
+		else if (command.equalsIgnoreCase("query")) {
+			try {
+				String addr = commandParams.split(":")[0];
+				int port = Integer.valueOf(commandParams.split(":")[1]);
+				Query q = new Query(addr, port);
+				q.sendQuery();
+
+				send("PRIVMSG "+target+" :"+q.getData()+(q.getPlayers().length > 0 ? " / "+q.getPlayers() : ""));
+			}
+			catch (Exception e) {
+				send("PRIVMSG "+target+" :"+e.toString());
+			}
+		}
+
+		else if (command.matches("force(y(ou)?t(ube)?)?update") && userIsAdmin) {
 			send("PRIVMSG "+target+" :Forcing update, please stand by...");
 			if (commandParams.equals("")) {
 				YouTube.updateChannel();
@@ -894,6 +913,19 @@ public class Engine implements Runnable {
 			}
 			else
 				YouTube.updateChannel(commandParams);
+		}
+
+		else if (command.equalsIgnoreCase("removevideo") && userIsAdmin) {
+			try {
+				String channel = commandParams.split(" ")[0].toLowerCase();
+				String VID = commandParams.split(" ")[1];
+				YouTube.channels.get(channel).uploads.get(VID).setRemoved(true, nick);
+			}
+			catch (NullPointerException e) { send("PRIVMSG "+target+" :No such video."); }
+			catch (ArrayIndexOutOfBoundsException e1) { 
+				send("PRIVMSG "+target+" :Invalid paramerters!");
+				send("PRIVMSG "+target+" :    [!@#.]removevideo <channelname> <videoID>");
+			}
 		}
 
 		//		else if (command.matches("(olympics?(medal)?)(table)?")) {
@@ -1074,7 +1106,7 @@ public class Engine implements Runnable {
 				GetLatestVideo.lookupLatestVideo(this, outType, pub ? target : nick, commandParams);
 			}
 		}
-		
+
 		else if (command.matches("(add|register)(awesome)?enderchest")) {
 			String[] d = commandParams.split(" ");
 			boolean switches = d[0].startsWith("-");
@@ -1117,7 +1149,7 @@ public class Engine implements Runnable {
 				return;
 			}
 		}
-		
+
 		else if (command.equals("reloadenderchestlist") && userIsAdmin) {
 			List<Enderchest> ec = enderchests.getChestList();
 			enderchests = new Enderchests(this);
@@ -1256,8 +1288,8 @@ public class Engine implements Runnable {
 	}
 
 	public void writeToLog(String s) throws IOException {
-//		if (!s.endsWith("\n"))
-//			s = s+"\n";
+		//		if (!s.endsWith("\n"))
+		//			s = s+"\n";
 		if (s.startsWith("-> PRIVMSG NickServ :identify"))
 			return;
 		//logWriter.seek(logWriter.length());
@@ -1348,7 +1380,7 @@ public class Engine implements Runnable {
 		console = new Console(this);
 		console.start();
 	}
-	
+
 	public boolean serverEnabled() {
 		return this.runDebugServer;
 	}
@@ -1356,11 +1388,11 @@ public class Engine implements Runnable {
 	public iUtilServer getServer() {
 		return this.debugserver;
 	}
-	
+
 	public String[] getInfoString() throws SocketException { return getInfoStrings(""); }
-	
+
 	public String[] getInfoStrings(String args) throws SocketException {
-		
+
 		long totalMemory = Runtime.getRuntime().totalMemory();
 		long freeMemory = Runtime.getRuntime().freeMemory();
 		long usedMemory = totalMemory - freeMemory;
@@ -1369,15 +1401,15 @@ public class Engine implements Runnable {
 		d.setTimeZone(TimeZone.getTimeZone("GMT"));
 		String ytupdateo = "YouTube: "+d.format(YouTube.channels.get(YouTube.channels.keySet().iterator().next()).updateAt + 600000);
 		String twitcho = " | Twitch.TV "+d.format(twitchTV.updateAt + 600000);
-		String mcupdateo = " | MCChat: "+d.format(mindcrack.updateAt + 120000);
+		//String mcupdateo = " | MCChat: "+d.format(mindcrack.updateAt + 120000);
 		//String awesomeupdateo = " | AWeSomeChat: "+d.format(AWeSome.updateAt + 120000);
 		String awesomeupdateo = "";
 		String olyupdateo = "";/*" | Olympics: "+d.format(olympics.updateAt + olympics.updateDelay);*/
 		List<String> outs = new ArrayList<String>();
 		if (args.equals("") || args.contains("m"))
 			outs.add("Memory Usage: "+memory+" | "+channels.size()+" channels | "+YouTube.channels.size()+" watched users");
-		if (args.equals("") || args.contains("t"))
-			outs.add("Thread Updates (GMT): "+ytupdateo+twitcho+mcupdateo);
+/*		if (args.equals("") || args.contains("t"))
+			outs.add("Thread Updates (GMT): "+ytupdateo+twitcho+mcupdateo);*/
 		if (args.equals("") || args.contains("c"))
 			outs.add("Connection: "+connection.toString()+", "+connection.getReceiveBufferSize()+", "+connection.getSendBufferSize()+", "+this.ACTUAL_SERVER);
 		if (args.equals("") || args.contains("j"))
@@ -1386,7 +1418,7 @@ public class Engine implements Runnable {
 			outs.add("Uptimes: "+GuiUtils.formatTime(botStart)+" (Bot) "+GuiUtils.formatTime(connectionStart)+" (Connection)");
 		if (runGUI && ((args.equals("") || args.contains("g"))))
 			outs.add("GUI: "+gui.toString()+", "+gui.gui.toString()+", "+gui.hashCode()+"/"+gui.gui.hashCode());
-		
+
 		String[] a = new String[outs.size()];
 		outs.toArray(a);
 		return a;

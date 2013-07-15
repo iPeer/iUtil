@@ -146,14 +146,12 @@ public class ThreadedMCServerPoller extends Thread {
 					engine.send(this.prefix+out1);
 				//System.out.println(out1);
 			}
-			finally {
-				if (in != null)
-					in.close();
-				if (out != null)
-					out.close();
-				if (s != null) 
-					s.close();
-			}
+			if (in != null)
+				in.close();
+			if (out != null)
+				out.close();
+			if (s != null)
+				s.close();
 		}
 		catch (Exception e) {
 			String s = "An error occurred when trying to poll the minecraft server "+mcserver.getAddress()+"/"+mcserver.getPort()+": "+e.getMessage();
@@ -182,7 +180,7 @@ public class ThreadedMCServerPoller extends Thread {
 	public String getStatusString() {
 		return this.server+"\01"+this.port+"\01"+this.version+"\01"+this.ping+"\01"+this.severity+"\01"+this.status+"\01"+this.currPlayers+"\01"+this.maxPlayers;
 	}
-	
+
 	@Override
 	public String toString() {
 		return getStatusString();

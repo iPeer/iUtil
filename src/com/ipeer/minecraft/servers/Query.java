@@ -4,109 +4,125 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
-import java.util.Random;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
-public class Query implements Runnable {
+public class Query {
+	
+	private InetSocketAddress address;
+	private Map<String, String> values;
+	private String[] users;
 
-	private String address = "";
-	private int port = 25565;
-	public boolean isRunning = false;
-	private int sessionToken;
-	private int sessionID;
-
-	private static final byte HANDSHAKE = 0x09;
-	private static final byte STATISTIC = 0x00;
-
-	public static void main(String[] args) {
-		Query q = new Query("127.0.0.1", 47337);
-		q.start();
+	public static void main(String[] args) throws IOException {
+		Query q = new Query("auron.co.uk", 35566);
+		q.sendQuery();
+		Map<String, String> data = q.getData();
+		String[] players = q.getPlayers();
+		for (String key : data.keySet())
+			System.out.println(key+": "+data.get(key));
+		if (players.length == 0)
+			return;
+		System.out.println("\n=== PLAYERS ===\n");
+		for (String p : players)
+			System.out.println(p);
+		
 	}
-
-	public void start() {
-		isRunning = true;
-		(new Thread(this)).start();
+	
+	public Query(String address, int port) {
+		this(new InetSocketAddress(address, port));
 	}
-
-
-	public void stop() {
-		isRunning = false;
+	
+	public Query(InetSocketAddress inetSocketAddress) {
+		this.address =  inetSocketAddress;
 	}
-
-	public Query (String address, int port) {
-		this.address = address;
-		this.port = port;
+	
+	public void sendQuery() throws IOException {
+		sendQueryRequest();
 	}
-
-	@Override
-	public void run() {
-		System.err.println(address+", "+port);
-		while (isRunning) {
-			try {
-				DatagramSocket s = new DatagramSocket();
-				s.setSoTimeout(30000);
-				s.connect(new InetSocketAddress(address, port));
-				// Get session token
-				writeData(s, HANDSHAKE, "");
-				s.close();
-
-				Thread.sleep(300000);
-			} 
-			catch (InterruptedException e) {
-				e.printStackTrace();
-			} catch (IOException e) {
-				e.printStackTrace();
+	
+	public Map<String, String> getData() {
+		return this.values;
+	}
+	
+	public String[] getPlayers() {
+		return this.users;
+	}
+	
+	public void sendQueryRequest() throws IOException {
+		
+		DatagramSocket socket = new DatagramSocket();
+		try {
+			byte[] recv = new byte[10240];
+			socket.setSoTimeout(5000);
+			long now = System.nanoTime();
+			sendPacket(socket, address, 0xFE, 0xFD, 0x09, 0x01, 0x01, 0x01, 0x01);
+			int challenge;
+			{
+				receivePacket(socket, recv);
+				byte b = -1;
+				int i = 0;
+				byte[] buffer = new byte[8];
+				for (int c = 5; (b = recv[c++]) != 0;)
+					buffer[i++] = b;
+				challenge = Integer.parseInt(new String(buffer).trim());
 			}
-		}
-	}
-
-	private void writeData(DatagramSocket s, byte type, String payload) throws IOException {
-		StringBuilder c = new StringBuilder();
-		c.append(" ( ");
-		int sessionID = new Random().nextInt(899)+100;
-		byte[] session = Integer.toString((sessionID)).getBytes();
-		for (byte b1 : session) {
-			c.append(b1+" ");
-		}
-		c.append(")");
-		System.err.println("SID: "+sessionID+c.toString());
-		c = new StringBuilder();
-		byte[] data0 = {(byte)254, (byte)253, type, 0, 0, 0, 1};
-		byte[] data = data0;
-		if (type == STATISTIC) {
-			byte[] payload1 = { (byte)(this.sessionToken >> 24), (byte)(this.sessionToken >> 16 & 0xff), (byte)(this.sessionToken >> 8 & 0xff), (byte)(this.sessionToken & 0xff) };
-			data = new byte[data0.length + payload1.length];
-			for (int i = 0; i < data.length; i++) {
-				data[i] = i < data0.length ? data0[i] : payload1[i - data0.length];
+			
+			sendPacket(socket, address, 0xFE, 0xFD, 0x00, 0x01, 0x01, 0x01, 0x01, challenge >> 24, challenge >> 16, challenge >> 8, challenge, 0x00, 0x00, 0x00, 0x00);
+			int length = receivePacket(socket, recv).getLength();
+			long ping = (System.nanoTime() - now) / 0xf4240L;
+			values = new HashMap<String, String>();
+			values.put("ping", ping+"ms");
+			AtomicInteger cursor = new AtomicInteger(5);
+			while (cursor.get() < length) {
+				String s = readString(recv, cursor);
+				if (s.length() == 0) // null terminator
+					break;
+				String value = readString(recv, cursor);
+				values.put(s, value);
 			}
-		} 
-		for (byte a1 : data) {
-			c.append(a1+" ");
+			readString(recv, cursor);
+			Set<String> players = new HashSet<String>();
+			while (cursor.get() < length) {
+				String player = readString(recv, cursor);
+				if (player.length() > 0)
+					players.add(player.trim());
+			}
+			users = players.toArray(new String[players.size()]);
 		}
-		System.err.println("DATA: "+c.toString());
-		c = new StringBuilder();
-		DatagramPacket p = new DatagramPacket(data, data.length);
-		s.send(p);
-		s.receive(p);
-		byte[] data1 = p.getData();
-		for (byte b1 : data1) {
-			c.append(b1+" ");
+		finally {
+			socket.close();
 		}
-		System.err.println("RESPONSE: "+c.toString());
-		c = new StringBuilder();
-
-		this.sessionToken = byteArrayToInt(data, 0);
-		System.err.println("SESSION TOKEN: "+this.sessionToken);
-		if (type != STATISTIC)
-			writeData(s, STATISTIC, Integer.toString(this.sessionToken));
+		
 	}
-
-	public static int byteArrayToInt(byte[] b, int offset) {
-		int value = 0;
-		for (int i = 0; i < 4; i++) {
-			int shift = (4 - 1 - i) * 8;
-			value += (b[i + offset] & 0xFF) << shift;
-		}
-		return value;
+	
+	private final static void sendPacket(DatagramSocket socket, InetSocketAddress address, byte... data) throws IOException {
+		DatagramPacket packet = new DatagramPacket(data, data.length, address.getAddress(), address.getPort());
+		socket.send(packet);
+	}
+	
+	// Helper
+	private final static void sendPacket(DatagramSocket socket, InetSocketAddress address, int... data) throws IOException {
+		byte[] d = new byte[data.length];
+		int x = 0;
+		for (int i : data)
+			d[x++] = (byte)(i & 0xff);
+		sendPacket(socket, address, d);
+	}
+	
+	private final static DatagramPacket receivePacket(DatagramSocket socket, byte[] buffer) throws IOException {
+		DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+		socket.receive(packet);
+		return packet;
+	}
+	
+	public final static String readString(byte[] array, AtomicInteger cursor) {
+		int start = cursor.incrementAndGet();
+		for (; cursor.get() < array.length && array[cursor.get()] != 0; cursor.incrementAndGet()) { }
+		return new String(Arrays.copyOfRange(array, start, cursor.get()));
 	}
 
 }

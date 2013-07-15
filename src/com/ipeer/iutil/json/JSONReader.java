@@ -43,6 +43,7 @@ public class JSONReader {
 		String[] data1 = s.split(",[\"\\{]");
 		for (String a : data1) {
 			String[] ddata = a.replaceAll("\\}\\]|\\{\\[|\\[\\{\"|\\}|\\{", "").split("\":");
+			System.err.println(ddata[0]+", "+ddata[1]);
 			data.put(trim(ddata[0]), trim(ddata[1]));	
 		}
 	}

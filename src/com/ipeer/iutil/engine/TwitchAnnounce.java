@@ -4,18 +4,22 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
 import java.util.Scanner;
 
-import com.ipeer.iutil.json.EmptyJSONFileException;
-import com.ipeer.iutil.json.JSONReader;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 public class TwitchAnnounce implements Runnable {
 
@@ -37,6 +41,8 @@ public class TwitchAnnounce implements Runnable {
 		//		users.add("Harumei");
 		//		users.add("Nebris");
 		loadUsers();
+		//		users.clear();
+		//		users.add("thegdstudio");
 		this.engine = engine;
 	}
 
@@ -44,27 +50,33 @@ public class TwitchAnnounce implements Runnable {
 		TwitchAnnounce a = new TwitchAnnounce(null);
 		for (String b : a.users)
 			System.err.println(b);
+		a.users.add("SuperMCGamer");
 		a.start();
 	}
 
 	public void start() {
+		System.err.println("TWITCH STARTED");
 		if (IS_RUNNING)
 			return;
 		IS_RUNNING = true;
 		(thread = new Thread(this, "Twitch.TV Announcer")).start();
 	}
 	public void stop() { 
+		System.err.println("TWITCH STOPPED!");
 		IS_RUNNING = false;
 		thread.interrupt();
 	}
 	public void run() { 
 		while (IS_RUNNING && !thread.isInterrupted()) {
-			for (String u : users)
-				check(u);
+			System.err.println("UPDATING TWITCH");
+			Iterator<String> it = users.iterator();
+			while (it.hasNext())
+				check(it.next());
 			updateAt = System.currentTimeMillis();
 			try {
 				Thread.sleep(updateDelay);
 			} catch (InterruptedException e) {
+				System.err.println("TWITCH EXCEPTION IN SLEEP!");
 				thread.interrupt();
 				IS_RUNNING = false;
 				e.printStackTrace();
@@ -77,9 +89,30 @@ public class TwitchAnnounce implements Runnable {
 		File userCache = new File(Engine.twitchCache, user+".iuc");
 		Properties prop = new Properties();
 		try {
-			JSONReader a = new JSONReader(new URL("https://api.justin.tv/api/stream/list.json?channel="+user));
-			String game = a.get("meta_game");
-			String status = a.get("status");
+			/*			JSONReader a = new JSONReader(new URL("https://api.justin.tv/api/stream/list.json?channel="+user));
+			System.err.println(a.toString());*/
+			DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
+			DocumentBuilder a;
+			a = f.newDocumentBuilder();
+			Document doc = a.newDocument();
+			doc = a.parse("https://api.justin.tv/api/stream/list.xml?channel="+user);
+			doc.getDocumentElement().normalize();
+			NodeList nodes = doc.getElementsByTagName("channel");
+			String game = null;
+			String status = null;
+			for (int i = 0; i < nodes.getLength(); i++) {
+				Node node = nodes.item(i);
+
+				if (node.getNodeType() == Node.ELEMENT_NODE) {
+					Element e1 = (Element)node;
+					status = getValue("status", e1);
+					game = getValue("meta_game", e1);
+				}
+			}
+			//System.err.println(game+": "+status);
+			//			String game = a.get("meta_game");
+			//			String status = a.get("status");
+
 			if (userCache.exists()) {
 				prop.load(new FileInputStream(userCache));
 				String lastGame = prop.getProperty("lastGame", "");
@@ -105,13 +138,14 @@ public class TwitchAnnounce implements Runnable {
 				updateDelay = 600000;
 			}				
 			prop.store(new FileOutputStream(userCache), "Twitch.TV Cache for "+user);
-		} catch (EmptyJSONFileException e) {
+		} 
+		catch (NullPointerException e) {
 			if (userCache.exists()) {
 				announce(user, "", "", 2);
 				userCache.delete();
 			}
 		} catch (Exception e) {
-			String e1 = "[Twitch, Strike: "+errors+"] The following error occured while updating "+user+": "+e.toString();
+/*			String e1 = "[Twitch, Strike: "+errors+"] The following error occured while updating "+user+": "+e.toString();
 			if (engine == null)
 				System.err.println(e1);
 			else
@@ -128,8 +162,9 @@ public class TwitchAnnounce implements Runnable {
 					}
 					engine.amsg(e1); 
 				}
-			engine.getServer().sendToAllAdminClients(e1);
-			e.printStackTrace();
+			if (engine != null)
+				engine.getServer().sendToAllAdminClients(e1);
+			e.printStackTrace();*/
 		}
 	}
 
@@ -143,9 +178,9 @@ public class TwitchAnnounce implements Runnable {
 		case 1:
 			String url = "http://twitch.tv/"+u;
 			char dash = 8212;
-			out = c2(u)+c1(" is LIVE ")+(s.equals("") ? "" : "with ")+c2(s)+(!g.equals("") ? c1(" playing ")+c2(g) : "")+c1(" "+dash+" ")+c2(url);
-			if (engine.serverEnabled())
-				engine.getServer().sendToAllClients("\247d"+u+" \2478is LIVE "+(s.equals("") ? "" : "with \247d")+c2(s)+(!g.equals("") ? " \2478playing \247d"+g : "")+" \2478"+dash+" \247d"+url);
+			out = c2(u)+c1(" is LIVE ")+(s.equals("") ? "" : "with ")+c2(s)+(!g.equals("") ? c1(" playing ")+c2(g+" ") : "")+c1(dash+" ")+c2(url);
+			if (engine != null && engine.serverEnabled())
+				engine.getServer().sendToAllClients("\247d"+u+" \2478is LIVE "+(s.equals("") ? "" : "with \247d")+c2(s)+(!g.equals("") ? " \2478playing \247d"+g+" " : "")+"\2478"+dash+" \247d"+url);
 			if (engine == null)
 				System.err.println(out);
 			else
@@ -215,4 +250,9 @@ public class TwitchAnnounce implements Runnable {
 		saveUsers();
 	}
 
+	private static String getValue(String tag, Element element) {
+		NodeList nodes = element.getElementsByTagName(tag).item(0).getChildNodes();
+		Node node = (Node) nodes.item(0);
+		return node.getNodeValue();
+	}
 }

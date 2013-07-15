@@ -231,10 +231,10 @@ public class iUtilProtocol {
 			}
 			else if (a.startsWith("stop") && client.getAccount().isAdmin()) {				
 				String thread = a.split("stop ")[1];
-				if (thread.equals("mcchat")) {
+				/*if (thread.equals("mcchat")) {
 					Engine.mindcrack.stop();
 				}
-				else if (thread.equals("youtube")) {
+				else */if (thread.equals("youtube")) {
 					Engine.YouTube.stopAll();
 				}
 				else if (thread.equals("twitch")) {
@@ -260,11 +260,11 @@ public class iUtilProtocol {
 
 			else if (a.startsWith("start") && client.getAccount().isAdmin()) {
 				String thread = a.split("start ")[1];
-				if (thread.equals("mcchat")) {
+				/*if (thread.equals("mcchat")) {
 					Engine.mindcrack.silent = true;
 					Engine.mindcrack.start();
 				}
-				else if (thread.equals("youtube")) {
+				else */if (thread.equals("youtube")) {
 					Engine.YouTube.startAll();
 				}
 				else if (thread.equals("twitch")) {

@@ -85,6 +85,10 @@ public class AWeSomeChat implements Runnable {
 /*		a.parseLine("2013-01-09 14:58:53 [INFO] Auron956 lost connection: disconnect.endOfStream", "survival");
 		a.parseLine("2013-01-09 16:13:45 [INFO] iPeer lost connection: disconnect.quitting", "survival");*/
 		a.parseLine("2013-02-05 01:04:08 [WARNING] Failed to handle packet for Auron956/78.105.52.16: java.lang.NullPointerException", "ftb");
+		a.parseLine("2013-04-09 15:56:13 [INFO] Disconnecting iPeer [/2.26.159.173:51602]: Failed to verify username! [internal error java.io.IOException: Server returned HTTP response code: 503 for URL: http://session.minecraft.net/game/checkserver.jsp?user=iPeer&serverId=-3e6a7d55ab81fda07ab9f325732017e1241ec74d]", "FTB");
+		a.parseLine("2013-04-17 17:18:04 [INFO] Done (5.485s)! For help, type \"help\" or \"?\"", "FtB");
+		a.parseLine("2013-06-15 19:55:05 [INFO] * iPeer test", "Test");
+		a.parseLine("2013-06-15 19:55:52 [INFO] iPeer lost connection: disconnect.quitting", "Test");
 	}
 
 	@Override
@@ -153,37 +157,55 @@ public class AWeSomeChat implements Runnable {
 			}
 		}
 
-		else if (line.contains("lost connection:") || (line.contains("Failed to handle packet") && online.contains(line.split(" ")[8].split("/")[0]))) {
+		else if (line.contains("Failed to verify") || (line.contains("lost connection:") || (line.contains("Failed to handle packet") || line.contains("left the game")))) {
 			String u = line.split(" ")[3];
 			String reason = line.split(" ")[6];
+			String out = prefix+" "+u+" left the game."+(!reason.equals("disconnect.quitting") ? " ("+reason+")" : "");
 					//2013-01-09 14:58:53 [INFO] Auron956 lost connection: disconnect.endOfStream
 			if (line.contains("Failed to handle packet")) {
 				u = line.split(" ")[8].split("/")[0];
 				reason = "Failed to handle packet: "+line.split(":")[3].trim();
+				out = prefix+" "+u+" was disconnected by the server ("+reason+")";
+			}
+			if (line.contains("Failed to verify")) {
+				u = line.split(" ")[4];
+				reason = line.split("\\]:")[1].split("\\[")[0].trim();
+				out = prefix+" "+u+" was disconnected by the server ("+reason+")";
 			}
 			if (online.contains(u)) {
 				setOffline(u);
-				writeToLog(line.split(" ")[0]+" "+line.split(" ")[1]+" "+u+" disconnected."+(!reason.equals("disconnect.quitting") ? " ("+reason+")" : ""), c);
+				writeToLog(line.split(" ")[0]+" "+line.split(" ")[1]+" "+u+" left the game."+(!reason.equals("disconnect.quitting") ? " ("+reason+")" : ""), c);
 				if (engine != null) {
-					engine.send("PRIVMSG #QuestHelp :"+prefix+" "+u+" disconnected."+(!reason.equals("disconnect.quitting") ? " ("+reason+")" : ""));
+					engine.send("PRIVMSG #QuestHelp :"+out);
 				}
 				else
 					System.err.println(u+" disconnected."+(!reason.equals("disconnect.quitting") ? " ("+reason+")" : ""));
 			}
 		}
 
-		else if (line.contains("logged in with entity id")) {
+		else if (line.contains("logged in with entity id") || line.contains("joined the game")) {
 			String u = line.split(" ")[3].replaceAll("\\[.*\\]", "");
-			if (!online.contains(u))
+			if (!online.contains(u)) {
 				setOnline(u);
-			writeToLog(line.split(" ")[0]+" "+line.split(" ")[1]+" "+u+" connected.", c);
-			if (engine != null) {
-				engine.send("PRIVMSG #QuestHelp :"+prefix+" "+u+" connected.");
+				writeToLog(line.split(" ")[0]+" "+line.split(" ")[1]+" "+u+" joined the game.", c);
+				if (engine != null) {
+					engine.send("PRIVMSG #QuestHelp :"+prefix+" "+u+" joined the game.");
+				}
+				else
+					System.err.println(u+" connected.");
 			}
-			else
-				System.err.println(u+" connected.");
 		}
-		else if (line.contains("[INFO]") && online.contains(line.split(" ")[3])) {	// deaths
+		else if (line.contains("[INFO] * ")) { // Actions
+			String player = line.split(" ")[4];
+			if (!online.contains(player))
+				setOnline(player);
+			writeToLog(line.split(" ")[0]+" "+line.split(" ")[1]+" * "+player+" "+line.split(player+" ")[1], c);
+			if (engine != null)
+				engine.send("PRIVMSG #QuestHelp :"+prefix+" * "+player+" "+line.split(player+" ")[1]);
+			else
+				System.err.println(" * "+player+" "+line.split(player+" ")[1]);
+		}
+		else if (line.contains("[INFO]") && online.contains(line.split(" ")[3]) && !line.contains("joined the game")) {	// deaths
 			String out = "";
 			String[] data = line.split(" ");
 			String user = data[3];
@@ -203,7 +225,13 @@ public class AWeSomeChat implements Runnable {
 			ThreadUtils.deathCounter.setProperty(user+"-"+c, Integer.toString(deaths));
 			ThreadUtils.deathCounter.store(new FileOutputStream(deathsFile), "AWeSome Death Counter Data");
 		}
-		else if (line.contains("Stopping server")) {
+		else if (line.contains("For help, type \"help\" or \"?\"")) {
+			if (engine != null)
+				engine.send("PRIVMSG #QuestHelp :"+c+" server has started.");
+			else
+				System.out.println(c+" has started.");
+		}
+		else if (line.contains("Stopping the server")) {
 			if (!online.isEmpty()) {
 				for (String a : online) {
 					online.remove(a);
@@ -215,6 +243,8 @@ public class AWeSomeChat implements Runnable {
 						System.err.println(a+" disconnected.");
 				}
 			}
+			if (engine != null)
+				engine.send("PRIVMSG #QuestHelp :"+c+" server has been stopped.");
 		}
 
 	}

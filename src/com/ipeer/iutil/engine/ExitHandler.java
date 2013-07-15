@@ -19,10 +19,10 @@ public class ExitHandler extends Thread implements Runnable {
 			Date d = new Date();
 			d.setTime(System.currentTimeMillis());
 			engine.writeToLog("\r\n****\r\nAPPLICATION TERMINATED "+DateFormat.getDateInstance().format(d)+"\r\n****");
-			File a = new File("MinecraftStatus.txt");
-			if (a.exists())	
-				a.delete();
-			a = new File("AWeSomeStatus.txt");
+//			File a = new File("MinecraftStatus.txt");
+//			if (a.exists())	
+//				a.delete();
+			File a = new File("AWeSomeStatus.txt");
 			if (a.exists())	
 				a.delete();
 			if (engine.serverEnabled()) {

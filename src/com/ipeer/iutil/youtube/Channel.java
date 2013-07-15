@@ -143,7 +143,7 @@ public class Channel implements Runnable {
 				Upload up = new Upload(title, duration, videoID);
 				uploads.put(videoID, up);
 				cache.put("lastID", videoID);
-				if (Engine.engine.serverEnabled())
+				if (Engine.engine != null && Engine.engine.serverEnabled())
 					Engine.engine.getServer().sendToAllAdminClients("Cached YouTube upload for user "+this.user+" with ID "+videoID+" {"+up.toString()+"}");
 				YouTube.cache.addVideo(this.user, title, videoID);
 				announce(title, duration, videoID);
@@ -203,6 +203,8 @@ public class Channel implements Runnable {
 				Upload e = uploads.get(d);
 				c.write("T: "+e.title+"\n");
 				c.write("L: "+e.length+"\n");
+				c.write("R: "+e.removed+"\n");
+				c.write("RB: "+e.removedBy+"\n");
 				c.write("I: "+e.VID+"\n");
 			}
 			c.close();
@@ -220,13 +222,25 @@ public class Channel implements Runnable {
 		String title = null;
 		String length = null;
 		String VID = null;
+		boolean removed = false;
+		String removedBy = "";
 		Map<String, Upload> c = new HashMap<String, Upload>();
 		while ((line = b.readLine()) != null) {
 			if (line.startsWith("T: "))
 				title = line.split("T: ")[1];
+			if (line.startsWith("R: "))
+				removed = Boolean.valueOf(line.split("R: ")[1]);
+			if (line.startsWith("RB: ")) {
+				try {
+					removedBy = line.split("RB: ")[1];
+				}
+				catch (Exception e) { 
+					removedBy = "nobody"; 
+				}
+			}
 			if (line.startsWith("I: ")) {
 				VID = line.split("I: ")[1];
-				c.put(VID, new Upload(title, length, VID));
+				c.put(VID, new Upload(title, length, VID, removed, removedBy));
 			}
 			if (line.startsWith("L: "))
 				length = line.split("L: ")[1];

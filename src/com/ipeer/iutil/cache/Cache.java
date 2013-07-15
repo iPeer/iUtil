@@ -20,6 +20,7 @@ import java.util.Set;
 
 import com.ipeer.iutil.engine.Channel;
 import com.ipeer.iutil.engine.Engine;
+import com.ipeer.iutil.youtube.Upload;
 
 public class Cache {
 
@@ -98,10 +99,17 @@ public class Cache {
 			o2.write("<font size=\"3\" style=\"strong\">"+u+"</font><ul>");
 			Set<String> b = a.URLs.keySet();
 			for (String e : b) {
+				//Upload thisUpload = Engine.YouTube.channels.get(u.toLowerCase()).uploads.get(e);
 				String url = a.URLs.get(e);
-				o.write("<div align=\"center\" width=\"100%\">");
-				o2.write("<li><a href=\"https://www.youtube.com/watch?v="+url+"\" target=\"_blank\">"+e+"</a></li>");
-				o.write("<a href=\"https://www.youtube.com/watch?v="+url+"\" target=\"_blank\"><img src=\"http://i2.ytimg.com/vi/"+url+"/mqdefault.jpg\" /><br /><font size=\"3\">"+e+"</font></a>");
+				o.write("<div align=\"center\" width=\"100%\" class=\"video\">");
+				//if (thisUpload != null && thisUpload.removed) {
+				//	o2.write("<li>This video was removed by "+thisUpload.removedBy);
+				//	o.write("This video was removed from this listing by "+thisUpload.removedBy);
+				//}
+				//else {
+					o2.write("<li><a href=\"https://www.youtube.com/watch?v="+url+"\" target=\"_blank\">"+e+"</a></li>");
+					o.write("<a href=\"https://www.youtube.com/watch?v="+url+"\" target=\"_blank\"><img src=\"http://i2.ytimg.com/vi/"+url+"/mqdefault.jpg\" /><br /><font size=\"3\">"+e+"</font></a>");
+				//}
 				o.write("</div>");
 			}
 			o2.write("</ul>");

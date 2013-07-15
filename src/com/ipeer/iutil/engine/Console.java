@@ -41,11 +41,13 @@ public class Console implements Runnable {
 				
 				if (b.matches("stop|exit|quit|[q]{1,3}")) {
 					engine.quit("STOP command from console.");
+					engine.YouTube.saveUsernames();
 					engine.requestedQuit = true;
 					System.exit(0);
 				}
 				if (b.equals("restart")) {
 					engine.quit("RESTART command from console.");
+					engine.YouTube.saveUsernames();
 					engine.requestedQuit = true;
 					System.exit(0);
 				}
@@ -94,6 +96,11 @@ public class Console implements Runnable {
 					ThreadGroup root = Thread.currentThread().getThreadGroup();
 					ThreadGroup parent = root.getParent();
 					listThreads(parent, "");
+				}
+				if (b.equalsIgnoreCase("removevideo")) {
+					String channel = d.split(" ")[1].toLowerCase();
+					String VID = d.split(" ")[2];
+					Engine.YouTube.channels.get(channel).uploads.get(VID).setRemoved(true, "Console");
 				}
 				if (b.equals("generatecache")) {
 					YouTube.cache.generateFile();
